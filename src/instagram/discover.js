@@ -13,7 +13,7 @@ const COUPLE_KEYWORDS = [
 ];
 
 /**
- * Use GPT to generate a fresh list of trending couple-content hashtags (US-focused).
+ * Use GPT to generate fresh trending couple hashtags (US-focused).
  */
 export async function getTrendingHashtags() {
   try {
@@ -21,17 +21,14 @@ export async function getTrendingHashtags() {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        {
-          role: 'system',
-          content: 'You are a social media expert specializing in Instagram influencer marketing.',
-        },
+        { role: 'system', content: 'You are a social media expert specializing in Instagram influencer marketing.' },
         {
           role: 'user',
           content:
             'Give me 10 currently trending Instagram hashtags used by US-based couple content creators ' +
-            'with large followings (100k+). Focus on hashtags that have many posts and active engagement. ' +
-            'Return ONLY a JSON array of hashtag strings WITHOUT the # symbol. ' +
-            'Example format: ["couplegoals", "relationshipgoals"]',
+            'with large followings (50k+). Pick hashtags that have at least 1 million posts. ' +
+            'Return ONLY a JSON array of strings WITHOUT the # symbol. ' +
+            'Example: ["couplegoals", "relationshipgoals"]',
         },
       ],
       temperature: 0.7,
@@ -39,30 +36,26 @@ export async function getTrendingHashtags() {
     });
 
     const raw = response.choices[0].message.content.trim();
-    // Extract JSON array from response
-    const match = raw.match(/\[.*\]/s);
-    if (!match) throw new Error('No JSON array found in GPT response');
+    const match = raw.match(/\[.*?\]/s);
+    if (!match) throw new Error('No JSON array in GPT response');
     const hashtags = JSON.parse(match[0]);
-    console.log(`[Discover] GPT suggested hashtags: ${hashtags.join(', ')}`);
+    console.log(`[Discover] GPT hashtags: ${hashtags.join(', ')}`);
     return hashtags;
   } catch (err) {
-    console.warn('[Discover] GPT hashtag fetch failed, using defaults:', err.message);
-    return [
-      'couplegoals', 'couplesofinstagram', 'relationshipgoals',
-      'couplelife', 'coupletravel', 'couplephotography',
-      'couplestyle', 'couplecontentcreator', 'relationshiptok', 'lovecouple',
-    ];
+    console.warn('[Discover] GPT fallback to defaults:', err.message);
+    return ['couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'couplephotography', 'powercouple', 'coupleswhotravel', 'lovebirds', 'couplestyle', 'couplecontentcreator'];
   }
 }
 
 /**
  * Main discovery function.
- * Uses network interception to extract user data directly from Instagram's internal API.
+ * Makes Instagram internal API calls from WITHIN the browser context so
+ * session cookies and CSRF tokens are automatically included.
  */
 export async function discoverCreators({
   minFollowers = config.minFollowers ?? 50000,
   maxPerRun = config.discoveryMaxPerRun ?? 15,
-  hashtags = null, // if null, GPT will generate them
+  hashtags = null,
   onProgress = null,
 } = {}) {
 
@@ -79,14 +72,13 @@ export async function discoverCreators({
   try { cookies = JSON.parse(cookiesStr); }
   catch { throw new Error('Failed to parse cookies JSON.'); }
 
-  // Get fresh hashtags from GPT if not provided
   if (!hashtags) {
     if (onProgress) onProgress('🤖 Asking GPT for trending hashtags...');
     hashtags = await getTrendingHashtags();
   }
 
-  console.log(`[Discover] Starting scan. Hashtags: ${hashtags.join(', ')} | Min: ${minFollowers}`);
-  if (onProgress) onProgress(`🔍 Got *${hashtags.length} hashtags* from GPT: ${hashtags.slice(0, 5).join(', ')}...`);
+  console.log(`[Discover] Hashtags: ${hashtags.join(', ')} | Min: ${minFollowers}`);
+  if (onProgress) onProgress(`🔍 Scanning *${hashtags.length} hashtags*: ${hashtags.slice(0, 5).join(', ')}...`);
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -99,111 +91,155 @@ export async function discoverCreators({
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setCookie(...cookies);
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
+
+    // Navigate to Instagram home to establish full session context
+    console.log('[Discover] Establishing Instagram session...');
+    await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
 
     for (const hashtag of hashtags) {
       if (discovered.length >= maxPerRun) break;
+      console.log(`[Discover] Querying #${hashtag}...`);
 
-      console.log(`[Discover] Scanning #${hashtag}...`);
-      const capturedUsers = [];
+      // ── Make API call from WITHIN the browser so cookies are auto-included ──
+      const users = await page.evaluate(async (tag) => {
+        const results = [];
 
-      // ── Intercept Instagram's internal API responses ─────────────────────
-      const responseHandler = async (response) => {
-        const url = response.url();
-        // Instagram loads hashtag feed via these endpoints
-        if (
-          (url.includes('/api/v1/feed/tag/') ||
-            url.includes('/api/v1/tags/') ||
-            url.includes('tag_name=' + hashtag) ||
-            url.includes('/graphql/query')) &&
-          response.status() === 200
-        ) {
-          try {
-            const text = await response.text();
-            const data = JSON.parse(text);
-
-            // Handle both GraphQL and REST API response shapes
-            const items =
-              data?.data?.hashtag?.edge_hashtag_to_media?.edges ||   // GraphQL
-              data?.items ||                                           // REST v1
-              data?.native_elements?.edges ||
-              [];
-
-            for (const item of items) {
-              // GraphQL shape
-              const node = item.node || item;
-              const user =
-                node?.owner ||
-                node?.user ||
-                node?.media?.owner;
-              if (!user?.username) continue;
-              const username = user.username;
-              const followerCount =
-                user.follower_count ||
-                user.edge_followed_by?.count ||
-                null;
-              if (username && !seenUsernames.has(username)) {
-                capturedUsers.push({ username, followerCount });
-                seenUsernames.add(username);
+        // Try endpoint 1: Instagram tag sections API
+        try {
+          const r1 = await fetch(`/api/v1/tags/${tag}/sections/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+              'X-IG-App-ID': '936619743392459',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: 'tab=top&page=1&next_max_id=',
+          });
+          if (r1.ok) {
+            const d1 = await r1.json();
+            const sections = d1?.sections || [];
+            for (const s of sections) {
+              const medias = s?.layout_content?.medias || [];
+              for (const m of medias) {
+                const user = m?.media?.user;
+                if (user?.username) {
+                  results.push({
+                    username: user.username,
+                    followers: user.follower_count || null,
+                    bio: user.biography || '',
+                  });
+                }
               }
             }
-          } catch (_) {
-            // Not JSON or wrong shape — ignore
           }
+        } catch (_) {}
+
+        // Try endpoint 2: feed/tag REST API
+        if (results.length === 0) {
+          try {
+            const r2 = await fetch(`/api/v1/feed/tag/?tag_name=${encodeURIComponent(tag)}&tab=top`, {
+              headers: {
+                'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                'X-IG-App-ID': '936619743392459',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+            });
+            if (r2.ok) {
+              const d2 = await r2.json();
+              const items = d2?.items || [];
+              for (const item of items) {
+                const user = item?.user;
+                if (user?.username) {
+                  results.push({
+                    username: user.username,
+                    followers: user.follower_count || null,
+                    bio: user.biography || '',
+                  });
+                }
+              }
+            }
+          } catch (_) {}
         }
-      };
 
-      page.on('response', responseHandler);
+        // Try endpoint 3: web info
+        if (results.length === 0) {
+          try {
+            const r3 = await fetch(`/api/v1/tags/web_info/?tag_name=${encodeURIComponent(tag)}`, {
+              headers: {
+                'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                'X-IG-App-ID': '936619743392459',
+              },
+            });
+            if (r3.ok) {
+              const d3 = await r3.json();
+              // Grab top posts
+              const top = d3?.data?.top?.sections || [];
+              for (const s of top) {
+                const medias = s?.layout_content?.medias || [];
+                for (const m of medias) {
+                  const user = m?.media?.user;
+                  if (user?.username) {
+                    results.push({
+                      username: user.username,
+                      followers: user.follower_count || null,
+                      bio: user.biography || '',
+                    });
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
 
-      try {
-        await page.goto(`https://www.instagram.com/explore/tags/${hashtag}/`, {
-          waitUntil: 'networkidle2',
-          timeout: 25000,
-        });
-        // Extra wait so all XHR calls fire
-        await new Promise(r => setTimeout(r, 5000));
-      } catch (err) {
-        console.warn(`[Discover] Navigation failed for #${hashtag}:`, err.message);
-      }
+        return results;
+      }, hashtag);
 
-      page.off('response', responseHandler);
+      console.log(`[Discover] #${hashtag}: got ${users.length} users from internal API`);
+      if (onProgress) onProgress(`📸 *#${hashtag}*: ${users.length} profiles found in API`);
 
-      console.log(`[Discover] Captured ${capturedUsers.length} users from #${hashtag} API responses`);
-      if (onProgress) onProgress(`📸 *#${hashtag}*: captured ${capturedUsers.length} profiles from API`);
-
-      // ── Check each captured user ──────────────────────────────────────────
-      for (const { username, followerCount } of capturedUsers) {
+      // ── Filter & qualify users ────────────────────────────────────────────
+      for (const { username, followers, bio } of users) {
         if (discovered.length >= maxPerRun) break;
+        if (seenUsernames.has(username)) continue;
+        seenUsernames.add(username);
 
-        // If we already have follower count from API, do quick check first
-        if (followerCount !== null && followerCount < minFollowers) {
-          console.log(`[Discover] ❌ @${username} — ${followerCount} followers (below threshold)`);
+        // Quick follower pre-filter using API data (avoid visiting profile)
+        if (followers !== null && followers < minFollowers) {
+          console.log(`[Discover] ❌ @${username} — ${followers} followers (too few)`);
           continue;
         }
 
-        try {
+        // Check couple keywords in bio (from API data)
+        const bioLower = (bio || '').toLowerCase();
+        const hasCoupleBio = COUPLE_KEYWORDS.some(kw => bioLower.includes(kw));
+
+        if (followers && followers >= minFollowers && hasCoupleBio) {
+          // We have all data from API — no need to visit profile!
+          discovered.push({ username, followers, bio });
+          console.log(`[Discover] ✅ @${username} — ${followers.toLocaleString()} followers (API data)`);
+          if (onProgress) onProgress(`✅ Found: *@${username}* (${followers.toLocaleString()} followers)`);
+          continue;
+        }
+
+        // Follower count unknown from API — visit profile to verify
+        if (followers === null) {
           const profileData = await visitProfile(page, username, minFollowers);
           if (!profileData) continue;
-
           discovered.push(profileData);
-          console.log(`[Discover] ✅ Qualified: @${username} | ${profileData.followers.toLocaleString()} followers`);
+          console.log(`[Discover] ✅ @${username} — ${profileData.followers.toLocaleString()} followers (profile visit)`);
           if (onProgress) onProgress(`✅ Found: *@${username}* (${profileData.followers.toLocaleString()} followers)`);
-
-          const delay = 4000 + Math.random() * 6000;
-          await new Promise(r => setTimeout(r, delay));
-
-        } catch (err) {
-          console.warn(`[Discover] Error on @${username}:`, err.message);
+          await new Promise(r => setTimeout(r, 4000 + Math.random() * 4000));
         }
       }
 
-      // If API gave nothing, fall back to visiting individual posts
-      if (capturedUsers.length === 0) {
-        console.log(`[Discover] No API data captured for #${hashtag}, trying post-click fallback...`);
-        await fallbackPostClick(page, hashtag, minFollowers, maxPerRun, seenUsernames, discovered, onProgress);
+      // If API returned nothing at all — use fallback post scraping
+      if (users.length === 0) {
+        console.log(`[Discover] API returned 0 for #${hashtag}. Trying post fallback...`);
+        await fallbackPostScrape(page, hashtag, minFollowers, maxPerRun, seenUsernames, discovered, onProgress);
       }
 
       await new Promise(r => setTimeout(r, 3000));
@@ -213,24 +249,26 @@ export async function discoverCreators({
     await browser.close();
   }
 
-  console.log(`[Discover] Scan complete. Found ${discovered.length} qualifying creators.`);
+  console.log(`[Discover] Done. ${discovered.length} qualifying creators found.`);
   return discovered;
 }
 
 /**
- * Fallback: click on individual posts and extract author username from post page.
+ * Fallback: visit hashtag page, find post links, click each, extract author.
  */
-async function fallbackPostClick(page, hashtag, minFollowers, maxPerRun, seenUsernames, discovered, onProgress) {
+async function fallbackPostScrape(page, hashtag, minFollowers, maxPerRun, seenUsernames, discovered, onProgress) {
   try {
-    // Find clickable post thumbnails
-    const postLinks = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll('a[href*="/p/"]'))
-        .map(a => a.href)
-        .filter((v, i, arr) => arr.indexOf(v) === i)
-        .slice(0, 12);
+    await page.goto(`https://www.instagram.com/explore/tags/${hashtag}/`, {
+      waitUntil: 'networkidle2',
+      timeout: 25000,
     });
+    await new Promise(r => setTimeout(r, 4000));
 
-    console.log(`[Discover] Fallback: found ${postLinks.length} post links on #${hashtag}`);
+    const postLinks = await page.evaluate(() =>
+      [...new Set(Array.from(document.querySelectorAll('a[href*="/p/"]')).map(a => a.href))].slice(0, 10)
+    );
+
+    console.log(`[Discover] Fallback: ${postLinks.length} posts found on #${hashtag}`);
 
     for (const postUrl of postLinks) {
       if (discovered.length >= maxPerRun) break;
@@ -239,15 +277,15 @@ async function fallbackPostClick(page, hashtag, minFollowers, maxPerRun, seenUse
         await page.goto(postUrl, { waitUntil: 'networkidle2', timeout: 20000 });
         await new Promise(r => setTimeout(r, 2000));
 
+        // Get author from page URL redirect or from page content
         const username = await page.evaluate(() => {
-          // Look for author link in the post header
-          const links = Array.from(document.querySelectorAll('header a[href], article a[href]'));
-          for (const a of links) {
+          // Look for the author link in the post page
+          const allLinks = Array.from(document.querySelectorAll('a[href]'));
+          const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags']);
+          for (const a of allLinks) {
             const href = a.getAttribute('href') || '';
             const match = href.match(/^\/([a-zA-Z0-9._]{3,30})\/$/);
-            if (match && !['explore', 'p', 'reel'].includes(match[1])) {
-              return match[1];
-            }
+            if (match && !SKIP.has(match[1])) return match[1];
           }
           return null;
         });
@@ -259,22 +297,22 @@ async function fallbackPostClick(page, hashtag, minFollowers, maxPerRun, seenUse
         if (!profileData) continue;
 
         discovered.push(profileData);
-        console.log(`[Discover] ✅ (fallback) Qualified: @${username} | ${profileData.followers.toLocaleString()} followers`);
+        console.log(`[Discover] ✅ (fallback) @${username} — ${profileData.followers.toLocaleString()} followers`);
         if (onProgress) onProgress(`✅ Found: *@${username}* (${profileData.followers.toLocaleString()} followers)`);
 
         await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
 
       } catch (err) {
-        console.warn(`[Discover] Fallback error on ${postUrl}:`, err.message);
+        console.warn(`[Discover] Fallback post error:`, err.message);
       }
     }
   } catch (err) {
-    console.warn(`[Discover] Fallback failed for #${hashtag}:`, err.message);
+    console.warn(`[Discover] fallbackPostScrape error:`, err.message);
   }
 }
 
 /**
- * Visit a creator profile page and check if they qualify.
+ * Visit a profile page and check follower count + couple bio.
  */
 async function visitProfile(page, username, minFollowers) {
   try {
@@ -286,44 +324,33 @@ async function visitProfile(page, username, minFollowers) {
 
     const data = await page.evaluate(() => {
       let followers = null;
-
-      // Method 1: meta description tag
       const meta = document.querySelector('meta[name="description"]');
       if (meta) {
-        const match = meta.content.match(/([\d,]+)\s+Followers/i);
-        if (match) followers = parseInt(match[1].replace(/,/g, ''), 10);
+        const m = meta.content.match(/([\d,]+)\s+Followers/i);
+        if (m) followers = parseInt(m[1].replace(/,/g, ''), 10);
       }
-
-      // Method 2: body text fallback
       if (!followers) {
         const bodyText = document.body.innerText;
-        const match2 = bodyText.match(/([\d,.]+[KMB]?)\s+[Ff]ollowers/);
-        if (match2) {
-          const raw = match2[1].replace(/,/g, '');
+        const m2 = bodyText.match(/([\d,.]+[KMB]?)\s+[Ff]ollowers/);
+        if (m2) {
+          const raw = m2[1].replace(/,/g, '');
           if (raw.endsWith('K')) followers = Math.round(parseFloat(raw) * 1000);
           else if (raw.endsWith('M')) followers = Math.round(parseFloat(raw) * 1000000);
           else followers = parseInt(raw, 10);
         }
       }
-
-      const metaBio = document.querySelector('meta[name="description"]')?.content || '';
+      const bio = document.querySelector('meta[name="description"]')?.content || '';
       const isPrivate = document.body.innerText.includes('This account is private');
-      return { followers, bio: metaBio, isPrivate };
+      return { followers, bio, isPrivate };
     });
 
-    if (!data.followers || data.followers < minFollowers) {
-      console.log(`[Discover] ❌ @${username} — ${data.followers ?? 'unknown'} followers`);
-      return null;
-    }
-    if (data.isPrivate) {
-      console.log(`[Discover] ❌ @${username} — private account`);
-      return null;
-    }
+    if (!data.followers || data.followers < minFollowers) return null;
+    if (data.isPrivate) return null;
 
     const bioLower = (data.bio || '').toLowerCase();
     const isCouple = COUPLE_KEYWORDS.some(kw => bioLower.includes(kw));
     if (!isCouple) {
-      console.log(`[Discover] ❌ @${username} (${data.followers.toLocaleString()}) — no couple bio match`);
+      console.log(`[Discover] ❌ @${username} (${data.followers?.toLocaleString()}) — no couple match in bio`);
       return null;
     }
 
