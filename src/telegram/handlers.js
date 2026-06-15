@@ -110,6 +110,10 @@ export function registerHandlers(bot) {
    Handler Functions
 ───────────────────────────────────────────────── */
 
+function escapeMd(str) {
+  return str ? str.toString().replace(/_/g, '\\_').replace(/\*/g, '\\*') : '';
+}
+
 async function handleApprove(bot, chatId, creatorId, messageId) {
   // Import here to avoid circular dep at startup
   const { approveCreator, getCreatorById } = await import('../services/creatorService.js');
@@ -118,7 +122,7 @@ async function handleApprove(bot, chatId, creatorId, messageId) {
 
   if (creator.state !== 'pending') {
     return bot.editMessageText(
-      `ℹ️ @${creator.username} is already in state: \`${creator.state}\``,
+      `ℹ️ @${escapeMd(creator.username)} is already in state: \`${creator.state}\``,
       { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
     );
   }
@@ -126,7 +130,7 @@ async function handleApprove(bot, chatId, creatorId, messageId) {
   await approveCreator(creatorId);
 
   await bot.editMessageText(
-    `✅ *Approved!* @${creator.username}\n\nOutreach DM queued 📤 (sends in ~5s)`,
+    `✅ *Approved!* @${escapeMd(creator.username)}\n\nOutreach DM queued 📤 (sends in ~5s)`,
     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
   );
 }
@@ -139,7 +143,7 @@ async function handleReject(bot, chatId, creatorId, messageId) {
   await rejectCreator(creatorId);
 
   await bot.editMessageText(
-    `❌ *Rejected* @${creator.username}`,
+    `❌ *Rejected* @${escapeMd(creator.username)}`,
     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
   );
 }
