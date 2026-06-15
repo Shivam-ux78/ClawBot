@@ -205,7 +205,7 @@ async function handleBotStateChange(bot, chatId, username, newState) {
 
   await bot.sendMessage(
     chatId,
-    `${stateEmoji} Bot state for @${creator.username} set to *${newState}*`,
+    `${stateEmoji} Bot state for @${escapeMd(creator.username)} set to *${newState}*`,
     { parse_mode: 'Markdown' }
   );
 }
