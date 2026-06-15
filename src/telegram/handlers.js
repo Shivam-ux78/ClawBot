@@ -95,10 +95,24 @@ export function registerHandlers(bot) {
       }
 
       if (text === '/discover') {
-        bot.sendMessage(chatId, '🔍 Starting manual discovery scan\.\.\. This may take a few minutes\.');
+        bot.sendMessage(chatId, '🔍 Starting manual discovery scan... This may take a few minutes.');
         runDiscovery().catch((err) => {
           bot.sendMessage(chatId, `⚠️ Discovery failed: ${err.message}`);
         });
+        return;
+      }
+
+      if (text.startsWith('/collab')) {
+        const username = extractUsername(text);
+        if (!username) return bot.sendMessage(chatId, '⚠️ Usage: `/collab @username`', { parse_mode: 'Markdown' });
+        
+        bot.sendMessage(chatId, `⏳ Fetching profile info for @${username}...`);
+        try {
+          const { addCreator } = await import('../services/creatorService.js');
+          await addCreator({ username, followers: null, niche: 'manual' });
+        } catch (err) {
+          bot.sendMessage(chatId, `⚠️ Error: ${err.message}`);
+        }
         return;
       }
 
@@ -279,6 +293,7 @@ async function handleHelp(bot, chatId) {
     ``,
     `*Discovery:*`,
     `\`/discover\` — Manually trigger an Instagram scan now`,
+    `\`/collab @username\` — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,
     `\`/pause @username\` — Stop AI replies`,
