@@ -53,40 +53,9 @@ app.get('/api/creators', async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────
-   Instagram Webhook
+   Instagram Webhook (Simulated Testing)
 ───────────────────────────────────────────────── */
 
-/** Meta webhook verification */
-app.get('/instagram/webhook', (req, res) => {
-  const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || 'clawbot_verify';
-  const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
-
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('[Webhook] Instagram webhook verified ✓');
-    return res.status(200).send(challenge);
-  }
-  res.sendStatus(403);
-});
-
-/** Incoming Instagram messages */
-app.post('/instagram/webhook', async (req, res) => {
-  res.sendStatus(200); // Must acknowledge < 200ms
-  try {
-    const body = req.body;
-    if (body.object !== 'instagram') return;
-    for (const entry of body.entry || []) {
-      for (const event of entry.messaging || []) {
-        const senderId = event.sender?.id;
-        const messageText = event.message?.text;
-        if (!senderId || !messageText) continue;
-        console.log(`[Webhook] Incoming from IG ID ${senderId}: "${messageText}"`);
-        // Full resolution requires real IG API — use /simulate for testing
-      }
-    }
-  } catch (err) {
-    console.error('[Webhook] Error:', err.message);
-  }
-});
 
 /**
  * POST /instagram/webhook/simulate

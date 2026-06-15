@@ -21,6 +21,7 @@ export const config = {
 
   // Meta Webhook
   metaVerifyToken: process.env.META_VERIFY_TOKEN || 'clawbot_secret_token_123',
+  instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN,
 
   // Safety
   dmDailyLimit: Number(process.env.DM_DAILY_LIMIT) || 30,
