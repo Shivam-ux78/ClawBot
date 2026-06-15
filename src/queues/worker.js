@@ -3,6 +3,12 @@ import IORedis from 'ioredis';
 import { config } from '../config.js';
 import { initDb, run, get } from '../db.js';
 import { sendDM } from '../instagram/client.js';
+import { initBot } from '../telegram/bot.js';
+
+// Initialize the Telegram bot in "Send Only" mode (no polling) 
+// so the worker can send notifications without causing 409 Conflicts.
+initBot({ polling: false });
+
 
 const connection = new IORedis(config.redisUrl, { maxRetriesPerRequest: null });
 

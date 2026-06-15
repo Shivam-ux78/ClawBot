@@ -4,17 +4,25 @@ import { registerHandlers } from './handlers.js';
 
 let _bot = null;
 
-export function initBot() {
+export function initBot(options = { polling: true }) {
   if (_bot) return _bot;
 
-  _bot = new TelegramBot(config.telegramBotToken, { polling: true });
+  _bot = new TelegramBot(config.telegramBotToken, { polling: options.polling });
 
   _bot.on('polling_error', (err) => {
-    console.error('[Telegram] Polling error:', err.message);
+    // Only log if we are actually polling
+    if (options.polling) {
+      console.error('[Telegram] Polling error:', err.message);
+    }
   });
 
-  registerHandlers(_bot);
-  console.log('[Telegram] Bot started (polling)');
+  if (options.polling) {
+    registerHandlers(_bot);
+    console.log('[Telegram] Bot started (polling mode: ON)');
+  } else {
+    console.log('[Telegram] Bot started (polling mode: OFF - Send Only)');
+  }
+  
   return _bot;
 }
 
