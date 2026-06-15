@@ -15,14 +15,33 @@ export async function runDiscovery(isRescan = false) {
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
   notify(`${label}... Looking for couple creators with 50k+ followers.`);
 
+  let added = 0;
+  let skipped = 0;
+
   try {
     const creators = await discoverCreators({
       minFollowers: config.minFollowers ?? 50000,
-      maxPerRun: config.discoveryMaxPerRun ?? 15,
+      maxPerRun: 5, // Limit to 5 per scan as requested
       onProgress: (msg) => notify(msg),
+      onCreatorFound: async (creator) => {
+        try {
+          // Process and send the approval card IMMEDIATELY
+          await addCreator({ 
+            username: creator.username, 
+            followers: creator.followers, 
+            niche: 'couple', 
+            bio: creator.bio 
+          });
+          added++;
+          console.log(`[DiscoveryJob] ✅ Added @${creator.username}`);
+        } catch (err) {
+          skipped++;
+          console.log(`[DiscoveryJob] Skipped @${creator.username}: ${err.message}`);
+        }
+      }
     });
 
-    if (!creators.length) {
+    if (added === 0 && skipped === 0) {
       notify('🔍 Scan complete. No qualifying creators found.\n\nAuto re-scanning in 30 minutes...');
       if (!isRescan) {
         setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);
@@ -30,21 +49,7 @@ export async function runDiscovery(isRescan = false) {
       return;
     }
 
-    let added = 0;
-    let skipped = 0;
-
-    for (const { username, followers, bio } of creators) {
-      try {
-        await addCreator({ username, followers, niche: 'couple', bio });
-        added++;
-        console.log(`[DiscoveryJob] ✅ Added @${username} (${followers?.toLocaleString()} followers)`);
-      } catch (err) {
-        skipped++;
-        console.log(`[DiscoveryJob] Skipped @${username}: ${err.message}`);
-      }
-    }
-
-    if (added === 0) {
+    if (added === 0 && skipped > 0) {
       notify(`⏭ All ${skipped} creators already in pipeline. Auto re-scanning in 30 minutes...`);
       if (!isRescan) {
         setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);

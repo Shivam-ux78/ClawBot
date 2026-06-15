@@ -53,6 +53,7 @@ export async function discoverCreators({
   maxPerRun = config.discoveryMaxPerRun ?? 15,
   hashtags = null,
   onProgress = null,
+  onCreatorFound = null,
 } = {}) {
 
   let cookiesStr;
@@ -200,14 +201,20 @@ export async function discoverCreators({
           }
 
           // ✅ Passed the follower filter — let user decide in Telegram
-          discovered.push({
+          const creatorObj = {
             username,
             followers: profileData.followers,
             bio: profileData.bio,
-          });
+          };
+          discovered.push(creatorObj);
 
           console.log(`[Discover] ✅ @${username} — ${profileData.followers.toLocaleString()} followers`);
           if (onProgress) onProgress(`✅ *@${username}* — ${profileData.followers.toLocaleString()} followers`);
+          
+          // Trigger the callback IMMEDIATELY so the approval card is sent right now
+          if (onCreatorFound) {
+            await onCreatorFound(creatorObj);
+          }
 
           // Human-like delay between profiles
           await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
