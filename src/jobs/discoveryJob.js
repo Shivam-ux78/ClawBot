@@ -65,10 +65,10 @@ export async function runDiscovery(isRescan = false) {
     console.error('[DiscoveryJob] Error:', err.message);
     notify(`⚠️ *Discovery failed:* ${err.message}`);
   }
+}
 
 /**
  * Starts the discovery cron job.
-
  * Default: runs every 6 hours.
  */
 export function startDiscoveryCron() {
