@@ -5,14 +5,12 @@ import path from 'path';
 
 const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
 
-// Couple-related keywords for bio filtering
 const COUPLE_KEYWORDS = [
   'couple', 'partner', 'together', 'love', 'boyfriend', 'girlfriend',
   'husband', 'wife', 'bae', 'soulmate', 'relationship', 'married',
-  'anniversary', 'duo', 'us', 'him & her', 'him and her', 'she & he',
+  'anniversary', 'duo', 'him & her', 'him and her', 'she & he',
 ];
 
-// Hashtags to scan
 const DEFAULT_HASHTAGS = [
   'couplegoals',
   'couplesofinstagram',
@@ -24,18 +22,12 @@ const DEFAULT_HASHTAGS = [
 
 /**
  * Main discovery function.
- * Scans Instagram hashtag pages and returns qualifying creators.
- *
- * @param {object} opts
- * @param {number} opts.minFollowers   - Minimum follower threshold (default: 50000)
- * @param {number} opts.maxPerRun      - Max creators to return per scan (default: 15)
- * @param {string[]} opts.hashtags     - Hashtags to scan
- * @returns {Promise<Array<{username: string, followers: number, bio: string}>>}
  */
 export async function discoverCreators({
   minFollowers = config.minFollowers ?? 50000,
   maxPerRun = config.discoveryMaxPerRun ?? 15,
   hashtags = config.discoveryHashtags ?? DEFAULT_HASHTAGS,
+  onProgress = null,
 } = {}) {
 
   let cookiesStr;
@@ -51,7 +43,8 @@ export async function discoverCreators({
   try { cookies = JSON.parse(cookiesStr); }
   catch { throw new Error('Failed to parse cookies JSON.'); }
 
-  console.log(`[Discover] Starting scan. Hashtags: ${hashtags.join(', ')} | Min followers: ${minFollowers}`);
+  console.log(`[Discover] Starting scan. Hashtags: ${hashtags.join(', ')} | Min: ${minFollowers}`);
+  if (onProgress) onProgress(`🔍 Scanning ${hashtags.length} hashtags... Min followers: ${minFollowers.toLocaleString()}`);
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -65,6 +58,7 @@ export async function discoverCreators({
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     await page.setCookie(...cookies);
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
     for (const hashtag of hashtags) {
       if (discovered.length >= maxPerRun) break;
@@ -75,62 +69,51 @@ export async function discoverCreators({
           waitUntil: 'networkidle2',
           timeout: 25000,
         });
-
-        // Small wait for the page to fully render
         await new Promise(r => setTimeout(r, 3000));
 
-        // Extract post links from the hashtag page
-        const postLinks = await page.evaluate(() => {
-          const anchors = Array.from(document.querySelectorAll('a[href*="/p/"]'));
-          return [...new Set(anchors.map(a => a.href))].slice(0, 20);
+        // Extract profile usernames directly from anchor tags on the hashtag page
+        const usernames = await page.evaluate(() => {
+          const found = new Set();
+          const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'tv',
+            'accounts', 'about', 'privacy', 'legal', 'tags', 'directory']);
+          document.querySelectorAll('a[href]').forEach(a => {
+            const href = a.getAttribute('href') || '';
+            const match = href.match(/^\/([a-zA-Z0-9._]{3,30})\/$/);
+            if (match && !SKIP.has(match[1])) found.add(match[1]);
+          });
+          return Array.from(found).slice(0, 25);
         });
 
-        console.log(`[Discover] Found ${postLinks.length} posts on #${hashtag}`);
+        console.log(`[Discover] Found ${usernames.length} potential profiles on #${hashtag}`);
+        if (onProgress) onProgress(`📸 #${hashtag}: checking ${usernames.length} profiles...`);
 
-        for (const postLink of postLinks) {
+        for (const username of usernames) {
           if (discovered.length >= maxPerRun) break;
+          if (seenUsernames.has(username)) continue;
+          seenUsernames.add(username);
 
           try {
-            // Visit the post to get the author's username
-            await page.goto(postLink, { waitUntil: 'networkidle2', timeout: 20000 });
-            await new Promise(r => setTimeout(r, 2000));
-
-            const username = await page.evaluate(() => {
-              // Try to find the author's username from the post page
-              const authorLink = document.querySelector('a[href^="/"][href$="/"]');
-              if (authorLink) {
-                const href = authorLink.getAttribute('href');
-                // Remove leading/trailing slashes
-                return href.replace(/^\/|\/$/g, '');
-              }
-              return null;
-            });
-
-            if (!username || seenUsernames.has(username) || username.includes('/')) continue;
-            seenUsernames.add(username);
-
-            // Visit the creator's profile
             const profileData = await visitProfile(page, username, minFollowers);
             if (!profileData) continue;
 
             discovered.push(profileData);
             console.log(`[Discover] ✅ Qualified: @${username} | ${profileData.followers.toLocaleString()} followers`);
+            if (onProgress) onProgress(`✅ Found: @${username} (${profileData.followers.toLocaleString()} followers)`);
 
-            // Random delay between 5–12 seconds to avoid rate limiting
             const delay = 5000 + Math.random() * 7000;
             await new Promise(r => setTimeout(r, delay));
 
           } catch (err) {
-            console.warn(`[Discover] Skipping post ${postLink}:`, err.message);
+            console.warn(`[Discover] Error visiting @${username}:`, err.message);
           }
         }
 
       } catch (err) {
-        console.warn(`[Discover] Failed to scan #${hashtag}:`, err.message);
+        console.warn(`[Discover] Failed on #${hashtag}:`, err.message);
+        if (onProgress) onProgress(`⚠️ Skipped #${hashtag}: ${err.message}`);
       }
 
-      // Delay between hashtag scans
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise(r => setTimeout(r, 4000));
     }
 
   } finally {
@@ -141,10 +124,6 @@ export async function discoverCreators({
   return discovered;
 }
 
-/**
- * Visit a profile and check if it qualifies.
- * Returns null if it doesn't qualify.
- */
 async function visitProfile(page, username, minFollowers) {
   try {
     await page.goto(`https://www.instagram.com/${username}/`, {
@@ -154,15 +133,12 @@ async function visitProfile(page, username, minFollowers) {
     await new Promise(r => setTimeout(r, 2000));
 
     const data = await page.evaluate(() => {
-      // Follower count from meta description
       let followers = null;
       const meta = document.querySelector('meta[name="description"]');
       if (meta) {
         const match = meta.content.match(/([\d,]+)\s+Followers/i);
         if (match) followers = parseInt(match[1].replace(/,/g, ''), 10);
       }
-
-      // Fallback: scan page text
       if (!followers) {
         const bodyText = document.body.innerText;
         const match2 = bodyText.match(/([\d,.]+[KMB]?)\s+[Ff]ollowers/);
@@ -173,25 +149,18 @@ async function visitProfile(page, username, minFollowers) {
           else followers = parseInt(raw, 10);
         }
       }
-
-      // Bio text
-      const bioEl = document.querySelector('div.-vDIg span, span._aacl._aaco._aacu._aacx._aad7._aade');
-      const bio = bioEl?.innerText?.trim() || document.querySelector('meta[name="description"]')?.content || '';
-
-      // Account type (skip verified brands / businesses for now)
+      const bio = document.querySelector('meta[name="description"]')?.content || '';
       const isPrivate = document.body.innerText.includes('This account is private');
-
       return { followers, bio, isPrivate };
     });
 
     if (!data.followers || data.followers < minFollowers) return null;
     if (data.isPrivate) return null;
 
-    // Bio keyword filter — must match at least one couple keyword
     const bioLower = (data.bio || '').toLowerCase();
     const isCouple = COUPLE_KEYWORDS.some(kw => bioLower.includes(kw));
     if (!isCouple) {
-      console.log(`[Discover] ❌ @${username} (${data.followers.toLocaleString()} followers) — bio doesn't match couple keywords`);
+      console.log(`[Discover] ❌ @${username} (${data.followers?.toLocaleString()}) — bio no couple match`);
       return null;
     }
 

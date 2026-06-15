@@ -18,6 +18,9 @@ export async function runDiscovery() {
     const creators = await discoverCreators({
       minFollowers: config.minFollowers ?? 50000,
       maxPerRun: config.discoveryMaxPerRun ?? 15,
+      onProgress: (msg) => {
+        notify(msg);
+      },
     });
 
     if (!creators.length) {
