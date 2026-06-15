@@ -7,7 +7,7 @@ import { config } from '../config.js';
 /**
  * Runs the full discovery pipeline:
  * 1. Scrapes Instagram hashtags for couple creators
- * 2. Filters by follower count & bio keywords
+ * 2. Filters by follower count
  * 3. Adds new creators to DB (skips duplicates)
  * 4. Sends Telegram approval cards for each new creator
  */
@@ -23,8 +23,7 @@ export async function runDiscovery(isRescan = false) {
     });
 
     if (!creators.length) {
-      notify('🔍 Scan complete. No qualifying creators found this run.\n\nTrying a fresh scan in 30 minutes...');
-      // Auto-rescan once after 30 minutes if nothing found
+      notify('🔍 Scan complete. No qualifying creators found.\n\nAuto re-scanning in 30 minutes...');
       if (!isRescan) {
         setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);
       }
@@ -36,7 +35,6 @@ export async function runDiscovery(isRescan = false) {
 
     for (const { username, followers, bio } of creators) {
       try {
-        // Pass bio so it shows in the Telegram approval card
         await addCreator({ username, followers, niche: 'couple', bio });
         added++;
         console.log(`[DiscoveryJob] ✅ Added @${username} (${followers?.toLocaleString()} followers)`);
@@ -47,7 +45,7 @@ export async function runDiscovery(isRescan = false) {
     }
 
     if (added === 0) {
-      notify(`⏭ All ${skipped} creators already in pipeline. Re-scanning in 30 minutes with fresh hashtags...`);
+      notify(`⏭ All ${skipped} creators already in pipeline. Auto re-scanning in 30 minutes...`);
       if (!isRescan) {
         setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);
       }
@@ -73,7 +71,7 @@ export async function runDiscovery(isRescan = false) {
  */
 export function startDiscoveryCron() {
   const intervalHours = config.discoveryIntervalHours ?? 6;
-  const cronExpr = `0 */${intervalHours} * * *`; // Every N hours
+  const cronExpr = `0 */${intervalHours} * * *`;
 
   console.log(`[DiscoveryJob] Cron scheduled: every ${intervalHours} hours`);
 
