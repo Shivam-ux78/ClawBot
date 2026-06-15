@@ -44,11 +44,18 @@ async function sendStub(username, message, extras) {
    REAL — Puppeteer Hidden Browser
 ───────────────────────────────────────────────── */
 async function sendReal(username, message, extras) {
-  if (!fs.existsSync(COOKIES_PATH)) {
-    throw new Error(`Cookies file not found at: ${COOKIES_PATH}`);
+  let cookiesStr;
+  
+  if (process.env.IG_COOKIES_JSON) {
+    // Cloud environment (Railway/Render)
+    cookiesStr = process.env.IG_COOKIES_JSON;
+  } else if (fs.existsSync(COOKIES_PATH)) {
+    // Local development
+    cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+  } else {
+    throw new Error(`Cookies not found! Provide IG_COOKIES_JSON in cloud or cookies.json locally.`);
   }
 
-  const cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
   let cookies;
   try {
     cookies = JSON.parse(cookiesStr);
