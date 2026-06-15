@@ -38,6 +38,10 @@ export { getBot as bot };
    Message Builders — Telegram Cards
 ───────────────────────────────────────────────── */
 
+function escapeMd(str) {
+  return str ? str.toString().replace(/_/g, '\\_').replace(/\*/g, '\\*') : '';
+}
+
 /**
  * Send Stage 1 creator approval card.
  * @param {object} creator
@@ -47,9 +51,9 @@ export function sendApprovalCard(creator) {
   const text = [
     `🔍 *NEW CREATOR FOUND*`,
     ``,
-    `👤 Username: @${creator.username}`,
+    `👤 Username: @${escapeMd(creator.username)}`,
     `👥 Followers: ${creator.followers ? creator.followers.toLocaleString() : 'N/A'}`,
-    creator.niche ? `🏷 Niche: ${creator.niche}` : null,
+    creator.niche ? `🏷 Niche: ${escapeMd(creator.niche)}` : null,
     ``,
     `*What would you like to do?*`,
     `1️⃣ Approve — Send outreach DM`,
@@ -81,7 +85,7 @@ export function sendDealCard(creator, deal) {
   const text = [
     `🤝 *DEAL PROPOSAL*`,
     ``,
-    `Creator: @${creator.username}`,
+    `Creator: @${escapeMd(creator.username)}`,
     `💰 Proposed Price: *$${deal.proposed_price}*`,
     ``,
     `*Accept this deal?*`,
