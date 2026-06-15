@@ -48,12 +48,17 @@ function escapeMd(str) {
  */
 export function sendApprovalCard(creator) {
   const bot = getBot();
+  const bioSnippet = creator.bio
+    ? `📝 Bio: _${escapeMd(creator.bio.slice(0, 80))}${creator.bio.length > 80 ? '...' : ''}_`
+    : null;
+
   const text = [
     `🔍 *NEW CREATOR FOUND*`,
     ``,
     `👤 Username: @${escapeMd(creator.username)}`,
     `👥 Followers: ${creator.followers ? creator.followers.toLocaleString() : 'N/A'}`,
     creator.niche ? `🏷 Niche: ${escapeMd(creator.niche)}` : null,
+    bioSnippet,
     ``,
     `*What would you like to do?*`,
     `1️⃣ Approve — Send outreach DM`,
