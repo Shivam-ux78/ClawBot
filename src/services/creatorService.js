@@ -79,7 +79,7 @@ export async function rejectCreator(creatorId) {
  * Get a creator by username.
  */
 export async function getCreatorByUsername(username) {
-  return await get('SELECT * FROM creators WHERE username = $1', [username]);
+  return await get('SELECT * FROM creators WHERE LOWER(username) = LOWER($1)', [username]);
 }
 
 /**
