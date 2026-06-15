@@ -136,7 +136,12 @@ async function handleApprove(bot, chatId, creatorId, messageId) {
     );
   }
 
-  await approveCreator(creatorId);
+  await approveCreator(creatorId, {
+    websiteUrl: 'https://makeable.nyc/',
+    postLinks: [
+      'https://www.instagram.com/makeableofficial/'
+    ]
+  });
 
   await bot.editMessageText(
     `✅ *Approved!* @${escapeMd(creator.username)}\n\nOutreach DM queued 📤 (sends in ~5s)`,
