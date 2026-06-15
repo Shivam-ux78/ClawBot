@@ -44,6 +44,14 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/privacy', (req, res) => {
+  res.send(`<html><body><h1>Privacy Policy</h1><p>ClawBot is an internal brand partnership tool. It does not collect, store, or share personal data from end users. All Instagram interactions are conducted on behalf of the app owner only.</p></body></html>`);
+});
+
+app.get('/terms', (req, res) => {
+  res.send(`<html><body><h1>Terms of Service</h1><p>ClawBot is an internal automation tool used solely by its operator. Use is restricted to the account owner.</p></body></html>`);
+});
+
 app.get('/api/creators', async (req, res) => {
   try {
     const creators = await all('SELECT * FROM creators ORDER BY created_at DESC');
