@@ -94,7 +94,7 @@ export async function getCreatorById(id) {
  */
 export async function setBotState(username, botState) {
   const result = await run(
-    `UPDATE creators SET bot_state = $1, updated_at = NOW() WHERE username = $2`,
+    `UPDATE creators SET bot_state = $1, updated_at = NOW() WHERE LOWER(username) = LOWER($2)`,
     [botState, username]
   );
   if (result.changes === 0) throw new Error(`Creator @${username} not found`);

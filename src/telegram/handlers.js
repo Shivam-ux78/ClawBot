@@ -181,7 +181,7 @@ async function handleDealAccept(bot, chatId, dealId, messageId) {
   const result = await acceptDeal(dealId);
 
   await bot.editMessageText(
-    `🎉 *Deal Accepted!* @${result.creator.username} @ $${result.deal.proposed_price}\n\nConfirmation DM queued ✅`,
+    `🎉 *Deal Accepted!* @${escapeMd(result.creator.username)} @ $${result.deal.proposed_price}\n\nConfirmation DM queued ✅`,
     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
   );
 }
@@ -191,7 +191,7 @@ async function handleDealReject(bot, chatId, dealId, messageId) {
   const result = await rejectDeal(dealId);
 
   await bot.editMessageText(
-    `❌ *Deal Rejected* for @${result.creator.username}\n\nGraceful decline DM queued.`,
+    `❌ *Deal Rejected* for @${escapeMd(result.creator.username)}\n\nGraceful decline DM queued.`,
     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
   );
 }
@@ -227,7 +227,7 @@ async function handleStatus(bot, chatId, username) {
   const stateEmoji = { active: '🟢', paused: '🟡', manual: '🔴' }[creator.bot_state] || '⚪';
 
   const text = [
-    `📊 *Status: @${creator.username}*`,
+    `📊 *Status: @${escapeMd(creator.username)}*`,
     ``,
     `State: \`${creator.state}\``,
     `Bot: ${stateEmoji} \`${creator.bot_state}\``,
@@ -258,7 +258,7 @@ async function handleList(bot, chatId) {
   const stateEmoji = { active: '🟢', paused: '🟡', manual: '🔴' };
   const lines = creators.map((c) => {
     const e = stateEmoji[c.bot_state] || '⚪';
-    return `${e} @${c.username} | ${c.state} | ${c.followers ? Number(c.followers).toLocaleString() : 'N/A'} followers`;
+    return `${e} @${escapeMd(c.username)} | ${c.state} | ${c.followers ? Number(c.followers).toLocaleString() : 'N/A'} followers`;
   });
 
   bot.sendMessage(chatId, `📋 *Active Creators (${creators.length}):*\n\n${lines.join('\n')}`, {
@@ -278,7 +278,7 @@ async function handleDeals(bot, chatId) {
   }
 
   const emoji = { accepted: '✅', rejected: '❌', pending: '⏳', superseded: '⏩' };
-  const lines = deals.map((d) => `${emoji[d.status] || '❓'} @${d.username} — $${d.proposed_price} (${d.status})`);
+  const lines = deals.map((d) => `${emoji[d.status] || '❓'} @${escapeMd(d.username)} — $${d.proposed_price} (${d.status})`);
 
   bot.sendMessage(chatId, `🤝 *Deals (${deals.length}):*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
 }
@@ -314,6 +314,6 @@ async function handleHelp(bot, chatId) {
    Helpers
 ───────────────────────────────────────────────── */
 function extractUsername(text) {
-  const match = text.match(/@?([a-zA-Z0-9._]{1,30})\s*$/);
-  return match ? match[1].replace('@', '') : null;
+  const match = text.match(/[\s@]@?([a-zA-Z0-9._]{1,30})\s*$/);
+  return match ? match[1] : null;
 }

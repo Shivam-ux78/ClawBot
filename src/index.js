@@ -2,7 +2,7 @@ import express from 'express';
 import 'dotenv/config';
 import { validateConfig, config } from './config.js';
 import { initDb, all } from './db.js';
-import { initBot, sendDealCard, notify } from './telegram/bot.js';
+import { initBot, sendDealCard, notify, escapeMd } from './telegram/bot.js';
 import creatorsRouter from './routes/creators.js';
 import webhookRouter from './routes/webhook.js';
 import {
@@ -81,7 +81,7 @@ app.post('/instagram/webhook/simulate', async (req, res) => {
     await logIncomingMessage(creator.id, message);
 
     // 2. Notify Telegram
-    notify(`📩 *@${creator.username}* replied:\n\n_"${message}"_`);
+    notify(`📩 *@${escapeMd(creator.username)}* replied:\n\n"${message}"`);
 
     // 3. Check bot state
     if (creator.bot_state === 'paused') {
@@ -107,7 +107,7 @@ app.post('/instagram/webhook/simulate', async (req, res) => {
 
       if (decision === 'counter') {
         const counterMsg = await generateCounterOffer(creator.username, quotedPrice, config.targetBudget);
-        notify(`💬 *Counter offer* → @${creator.username}:\n_"${counterMsg}"_`);
+        notify(`💬 *Counter offer* → @${escapeMd(creator.username)}:\n"${counterMsg}"`);
         await enqueueDM('counter', { creatorId: creator.id, username: creator.username, message: counterMsg });
         return res.json({ success: true, action: 'counter_offer', counterMsg });
       }

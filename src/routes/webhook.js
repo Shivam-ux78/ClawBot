@@ -2,7 +2,7 @@ import express from 'express';
 import { config } from '../config.js';
 import { getCreatorByUsername, logIncomingMessage, getConversationHistory } from '../services/creatorService.js';
 import { createDeal } from '../services/dealService.js';
-import { notify, sendDealCard } from '../telegram/bot.js';
+import { notify, sendDealCard, escapeMd } from '../telegram/bot.js';
 import { extractPrice, negotiationDecision, generateCounterOffer, generateReply } from '../ai/negotiate.js';
 import { enqueueDM } from '../queues/dmQueue.js';
 
@@ -69,7 +69,7 @@ router.post('/', async (req, res) => {
 
           // 3. Log incoming message
           await logIncomingMessage(creator.id, messageText);
-          notify(`📩 *@${creator.username}* replied:\n\n_"${messageText}"_`);
+          notify(`📩 *@${escapeMd(creator.username)}* replied:\n\n"${messageText}"`);
 
           // 4. Check Bot State
           if (creator.bot_state === 'paused' || creator.bot_state === 'manual') {
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
 
             if (decision === 'counter') {
               const counterMsg = await generateCounterOffer(creator.username, quotedPrice, config.targetBudget);
-              notify(`💬 *Counter offer* → @${creator.username}:\n_"${counterMsg}"_`);
+              notify(`💬 *Counter offer* → @${escapeMd(creator.username)}:\n"${counterMsg}"`);
               await enqueueDM('counter', { creatorId: creator.id, username: creator.username, message: counterMsg });
               continue;
             }

@@ -38,7 +38,7 @@ export { getBot as bot };
    Message Builders — Telegram Cards
 ───────────────────────────────────────────────── */
 
-function escapeMd(str) {
+export function escapeMd(str) {
   return str ? str.toString().replace(/_/g, '\\_').replace(/\*/g, '\\*') : '';
 }
 
@@ -116,5 +116,7 @@ export function sendDealCard(creator, deal) {
  * @param {string} text
  */
 export function notify(text) {
-  getBot().sendMessage(config.telegramChatId, text, { parse_mode: 'Markdown' });
+  getBot()
+    .sendMessage(config.telegramChatId, text, { parse_mode: 'Markdown' })
+    .catch((err) => console.error('[Telegram] notify failed:', err.message));
 }
