@@ -11,20 +11,23 @@ import { config } from '../config.js';
  * 3. Adds new creators to DB (skips duplicates)
  * 4. Sends Telegram approval cards for each new creator
  */
-export async function runDiscovery() {
-  notify('🔍 *Discovery scan started...* Looking for couple creators with 50k+ followers.');
+export async function runDiscovery(isRescan = false) {
+  const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
+  notify(`${label}... Looking for couple creators with 50k+ followers.`);
 
   try {
     const creators = await discoverCreators({
       minFollowers: config.minFollowers ?? 50000,
       maxPerRun: config.discoveryMaxPerRun ?? 15,
-      onProgress: (msg) => {
-        notify(msg);
-      },
+      onProgress: (msg) => notify(msg),
     });
 
     if (!creators.length) {
-      notify('🔍 Discovery scan complete. No new qualifying creators found this run.');
+      notify('🔍 Scan complete. No qualifying creators found this run.\n\nTrying a fresh scan in 30 minutes...');
+      // Auto-rescan once after 30 minutes if nothing found
+      if (!isRescan) {
+        setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);
+      }
       return;
     }
 
@@ -33,32 +36,39 @@ export async function runDiscovery() {
 
     for (const { username, followers, bio } of creators) {
       try {
-        // addCreator already sends the Telegram approval card
-        await addCreator({ username, followers, niche: 'couple' });
+        // Pass bio so it shows in the Telegram approval card
+        await addCreator({ username, followers, niche: 'couple', bio });
         added++;
-        console.log(`[DiscoveryJob] ✅ Added @${username} (${followers.toLocaleString()} followers)`);
+        console.log(`[DiscoveryJob] ✅ Added @${username} (${followers?.toLocaleString()} followers)`);
       } catch (err) {
-        // Creator already exists or some other error
         skipped++;
         console.log(`[DiscoveryJob] Skipped @${username}: ${err.message}`);
       }
     }
 
+    if (added === 0) {
+      notify(`⏭ All ${skipped} creators already in pipeline. Re-scanning in 30 minutes with fresh hashtags...`);
+      if (!isRescan) {
+        setTimeout(() => runDiscovery(true).catch(console.error), 30 * 60 * 1000);
+      }
+      return;
+    }
+
     notify(
-      `🔍 *Discovery scan complete!*\n\n` +
-      `✅ New creators found: *${added}*\n` +
+      `🔍 *Scan complete!*\n\n` +
+      `✅ New approval cards sent: *${added}*\n` +
       `⏭ Already in pipeline: *${skipped}*\n\n` +
-      `Check the approval cards above to approve or reject each one.`
+      `Approve or Reject each card above 👆`
     );
 
   } catch (err) {
-    console.error('[DiscoveryJob] Error during scan:', err.message);
-    notify(`⚠️ *Discovery scan failed:* ${err.message}`);
+    console.error('[DiscoveryJob] Error:', err.message);
+    notify(`⚠️ *Discovery failed:* ${err.message}`);
   }
-}
 
 /**
  * Starts the discovery cron job.
+
  * Default: runs every 6 hours.
  */
 export function startDiscoveryCron() {

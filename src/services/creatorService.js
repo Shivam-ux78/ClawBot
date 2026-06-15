@@ -11,21 +11,26 @@ import { getProfileInfo } from '../instagram/client.js';
 /**
  * Add a new creator and trigger Stage 1 Telegram approval.
  */
-export async function addCreator({ username, followers, niche }) {
+export async function addCreator({ username, followers, niche, bio }) {
   const existing = await get('SELECT * FROM creators WHERE username = $1', [username]);
   if (existing) {
     throw new Error(`Creator @${username} already exists (state: ${existing.state})`);
   }
 
-  // Auto-fetch real follower count from Instagram via Puppeteer
-  console.log(`[CreatorService] Fetching real profile info for @${username}...`);
-  const profileInfo = await getProfileInfo(username).catch(() => ({ followers: null }));
-  const realFollowers = profileInfo.followers ?? followers ?? null;
-  console.log(`[CreatorService] @${username} followers: ${realFollowers ?? 'unknown (using provided value)'}`);
+  let realFollowers = followers ?? null;
+  let realBio = bio ?? null;
+
+  // Only fetch from Instagram if we don't already have the follower count
+  if (!realFollowers) {
+    console.log(`[CreatorService] Fetching real profile info for @${username}...`);
+    const profileInfo = await getProfileInfo(username).catch(() => ({ followers: null }));
+    realFollowers = profileInfo.followers ?? null;
+    console.log(`[CreatorService] @${username} followers: ${realFollowers ?? 'unknown'}`);
+  }
 
   const { lastInsertRowid: creatorId } = await run(
-    'INSERT INTO creators (username, followers, niche) VALUES ($1, $2, $3) RETURNING id',
-    [username, realFollowers, niche ?? null]
+    'INSERT INTO creators (username, followers, niche, bio) VALUES ($1, $2, $3, $4) RETURNING id',
+    [username, realFollowers, niche ?? null, realBio]
   );
 
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);
