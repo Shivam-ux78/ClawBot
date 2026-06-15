@@ -2,6 +2,7 @@ import { run, get, all } from '../db.js';
 import { enqueueDM } from '../queues/dmQueue.js';
 import { bot, sendApprovalCard } from '../telegram/bot.js';
 import { config } from '../config.js';
+import { getProfileInfo } from '../instagram/client.js';
 
 /* ─────────────────────────────────────────────────
    Creator CRUD (PostgreSQL - Async)
@@ -16,9 +17,15 @@ export async function addCreator({ username, followers, niche }) {
     throw new Error(`Creator @${username} already exists (state: ${existing.state})`);
   }
 
+  // Auto-fetch real follower count from Instagram via Puppeteer
+  console.log(`[CreatorService] Fetching real profile info for @${username}...`);
+  const profileInfo = await getProfileInfo(username).catch(() => ({ followers: null }));
+  const realFollowers = profileInfo.followers ?? followers ?? null;
+  console.log(`[CreatorService] @${username} followers: ${realFollowers ?? 'unknown (using provided value)'}`);
+
   const { lastInsertRowid: creatorId } = await run(
     'INSERT INTO creators (username, followers, niche) VALUES ($1, $2, $3) RETURNING id',
-    [username, followers ?? null, niche ?? null]
+    [username, realFollowers, niche ?? null]
   );
 
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);

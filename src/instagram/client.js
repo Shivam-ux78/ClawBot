@@ -21,6 +21,73 @@ export async function sendDM(username, message, extras = {}) {
   return await sendReal(username, message, extras);
 }
 
+/**
+ * Fetch real follower count from Instagram profile (Puppeteer).
+ * Falls back to null if it fails (e.g. private account, cookies expired).
+ */
+export async function getProfileInfo(username) {
+  if (config.instagramStubMode) {
+    console.log(`[Instagram STUB] getProfileInfo @${username} → skipping`);
+    return { followers: null };
+  }
+
+  let cookiesStr;
+  if (process.env.IG_COOKIES_JSON) {
+    cookiesStr = process.env.IG_COOKIES_JSON;
+  } else if (fs.existsSync(COOKIES_PATH)) {
+    cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+  } else {
+    console.warn('[getProfileInfo] No cookies found, skipping follower lookup.');
+    return { followers: null };
+  }
+
+  let cookies;
+  try { cookies = JSON.parse(cookiesStr); }
+  catch { return { followers: null }; }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setCookie(...cookies);
+
+    console.log(`[Puppeteer] Fetching profile info for @${username}...`);
+    await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'networkidle2', timeout: 20000 });
+
+    // Try to grab follower count from the meta description tag (most reliable)
+    const followers = await page.evaluate(() => {
+      // Method 1: meta description (e.g. "50,234 Followers")
+      const meta = document.querySelector('meta[name="description"]');
+      if (meta) {
+        const match = meta.content.match(/([\d,]+)\s+Followers/i);
+        if (match) return parseInt(match[1].replace(/,/g, ''), 10);
+      }
+      // Method 2: look in the page text
+      const bodyText = document.body.innerText;
+      const match2 = bodyText.match(/([\d,.]+[KMB]?)\s+[Ff]ollowers/);
+      if (match2) {
+        const raw = match2[1].replace(/,/g, '');
+        if (raw.endsWith('K')) return Math.round(parseFloat(raw) * 1000);
+        if (raw.endsWith('M')) return Math.round(parseFloat(raw) * 1000000);
+        return parseInt(raw, 10);
+      }
+      return null;
+    });
+
+    console.log(`[Puppeteer] @${username} has ${followers ?? 'unknown'} followers.`);
+    return { followers };
+  } catch (err) {
+    console.warn(`[getProfileInfo] Failed for @${username}:`, err.message);
+    return { followers: null };
+  } finally {
+    await browser.close();
+  }
+}
+
 /* ─────────────────────────────────────────────────
    STUB — Safe for development & testing
 ───────────────────────────────────────────────── */
