@@ -1,6 +1,7 @@
 import { run, get, all } from '../db.js';
 import { sendDealCard, notify } from './bot.js';
 import { config } from '../config.js';
+import { runDiscovery } from '../jobs/discoveryJob.js';
 
 /**
  * Register all Telegram message + callback handlers on the bot instance.
@@ -90,6 +91,14 @@ export function registerHandlers(bot) {
 
       if (text === '/deals') {
         await handleDeals(bot, chatId);
+        return;
+      }
+
+      if (text === '/discover') {
+        bot.sendMessage(chatId, '🔍 Starting manual discovery scan\.\.\. This may take a few minutes\.');
+        runDiscovery().catch((err) => {
+          bot.sendMessage(chatId, `⚠️ Discovery failed: ${err.message}`);
+        });
         return;
       }
 
@@ -262,6 +271,9 @@ async function handleHelp(bot, chatId) {
     `*Creator Approval (inline buttons):*`,
     `✅ Approve → Sends enriched outreach DM`,
     `❌ Reject → Discards creator`,
+    ``,
+    `*Discovery:*`,
+    `\`/discover\` — Manually trigger an Instagram scan now`,
     ``,
     `*Bot Control:*`,
     `\`/pause @username\` — Stop AI replies`,

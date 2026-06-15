@@ -18,6 +18,7 @@ import {
   generateCounterOffer,
 } from './ai/negotiate.js';
 import { enqueueDM } from './queues/dmQueue.js';
+import { startDiscoveryCron } from './jobs/discoveryJob.js';
 
 /* ─────────────────────────────────────────────────
    Boot Sequence
@@ -137,7 +138,11 @@ app.listen(config.port, () => {
   console.log(`\n🚀 ClawBot running on http://localhost:${config.port}`);
   console.log(`   Telegram bot: polling ✓`);
   console.log(`   Instagram: ${config.instagramStubMode ? 'STUB mode 🧪' : 'REAL mode 📡'}`);
-  console.log(`   Budget: $${config.minBudget} – $${config.targetBudget} – $${config.maxBudget}\n`);
+  console.log(`   Budget: $${config.minBudget} – $${config.targetBudget} – $${config.maxBudget}`);
+  console.log(`   Discovery: every ${config.discoveryIntervalHours}h | min ${config.minFollowers.toLocaleString()} followers\n`);
+
+  // Start auto-discovery cron job
+  startDiscoveryCron();
 });
 
 export default app;

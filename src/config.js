@@ -34,6 +34,14 @@ export const config = {
 
   // Server
   port: Number(process.env.PORT) || 3000,
+
+  // Discovery Engine
+  minFollowers: Number(process.env.MIN_FOLLOWERS) || 50000,
+  discoveryHashtags: process.env.DISCOVERY_HASHTAGS
+    ? process.env.DISCOVERY_HASHTAGS.split(',').map(h => h.trim())
+    : ['couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'couplephotography'],
+  discoveryMaxPerRun: Number(process.env.DISCOVERY_MAX_PER_RUN) || 15,
+  discoveryIntervalHours: Number(process.env.DISCOVERY_INTERVAL_HOURS) || 6,
 };
 
 /**
