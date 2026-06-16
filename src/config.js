@@ -22,9 +22,10 @@ export const config = {
   // Meta Webhook
   metaVerifyToken: process.env.META_VERIFY_TOKEN || 'clawbot_secret_token_123',
 
-  // WhatsApp (CallMeBot)
+  // WhatsApp (Green API - https://green-api.com)
   whatsappPhone: process.env.WHATSAPP_PHONE || '919905251524',
-  whatsappApiKey: process.env.WHATSAPP_API_KEY || '',
+  whatsappIdInstance: process.env.WHATSAPP_ID_INSTANCE || '',
+  whatsappApiToken: process.env.WHATSAPP_API_TOKEN || '',
 
   // Safety
   dmDailyLimit: Number(process.env.DM_DAILY_LIMIT) || 40,
