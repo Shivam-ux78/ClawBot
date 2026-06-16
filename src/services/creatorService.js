@@ -3,6 +3,7 @@ import { enqueueDM } from '../queues/dmQueue.js';
 import { bot, sendApprovalCard } from '../telegram/bot.js';
 import { config } from '../config.js';
 import { getProfileInfo } from '../instagram/client.js';
+import { notifyWhatsApp } from './whatsappService.js';
 
 /* ─────────────────────────────────────────────────
    Creator CRUD (PostgreSQL - Async)
@@ -37,6 +38,15 @@ export async function addCreator({ username, followers, niche, bio }) {
 
   // Fire Telegram approval card
   sendApprovalCard(creator);
+
+  // Notify WhatsApp
+  await notifyWhatsApp(
+    `🔍 New creator found!\n\n` +
+    `👤 @${creator.username}\n` +
+    `👥 Followers: ${creator.followers ? Number(creator.followers).toLocaleString() : 'N/A'}\n` +
+    `🏷 Niche: ${creator.niche || 'N/A'}\n\n` +
+    `Check Telegram to approve and send outreach DM.`
+  );
 
   return creator;
 }

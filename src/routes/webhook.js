@@ -1,10 +1,8 @@
 import express from 'express';
 import { config } from '../config.js';
-import { getCreatorByUsername, logIncomingMessage, getConversationHistory } from '../services/creatorService.js';
-import { createDeal } from '../services/dealService.js';
-import { notify, sendDealCard, escapeMd } from '../telegram/bot.js';
-import { extractPrice, negotiationDecision, generateCounterOffer, generateReply } from '../ai/negotiate.js';
-import { enqueueDM } from '../queues/dmQueue.js';
+import { getCreatorByUsername, logIncomingMessage } from '../services/creatorService.js';
+import { notify, escapeMd } from '../telegram/bot.js';
+import { notifyWhatsApp } from '../services/whatsappService.js';
 
 const router = express.Router();
 
@@ -31,6 +29,7 @@ router.get('/', (req, res) => {
 /**
  * ============================================================================
  * 2. Meta Message Receiver (POST)
+ * Receives creator replies — notifies Telegram + WhatsApp only, no bot reply.
  * ============================================================================
  */
 router.post('/', async (req, res) => {
@@ -48,19 +47,19 @@ router.post('/', async (req, res) => {
         const messageText = event.message.text;
 
         try {
-          // 1. Convert IG_SID to @username via Graph API
+          // 1. Resolve IG sender ID to username via Graph API
           const graphRes = await fetch(`https://graph.facebook.com/v19.0/${senderId}?fields=username&access_token=${config.instagramAccessToken}`);
           const graphData = await graphRes.json();
-          
+
           if (!graphData.username) {
             console.error(`[Webhook] Could not resolve username for IG_SID: ${senderId}. Response:`, graphData);
             continue;
           }
 
           const username = graphData.username;
-          console.log(`\n🔔 [Webhook] Message from @${username}: "${messageText}"`);
+          console.log(`\n🔔 [Webhook] Reply from @${username}: "${messageText}"`);
 
-          // 2. Fetch creator from our database
+          // 2. Find creator in DB
           const creator = await getCreatorByUsername(username);
           if (!creator) {
             console.log(`[Webhook] Ignoring message from @${username} (Not in pipeline)`);
@@ -69,44 +68,15 @@ router.post('/', async (req, res) => {
 
           // 3. Log incoming message
           await logIncomingMessage(creator.id, messageText);
-          notify(`📩 *@${escapeMd(creator.username)}* replied:\n\n"${messageText}"`);
 
-          // 4. Check Bot State
-          if (creator.bot_state === 'paused' || creator.bot_state === 'manual') {
-            console.log(`[Webhook] Bot is ${creator.bot_state} for @${username}. Skipping AI reply.`);
-            continue;
-          }
+          // 4. Notify Telegram + WhatsApp — no reply sent back to creator
+          const telegramMsg = `📩 *@${escapeMd(creator.username)}* replied to your DM:\n\n"${messageText}"`;
+          const whatsappMsg = `📩 Creator @${creator.username} replied to your DM:\n\n"${messageText}"\n\nCheck Telegram for details.`;
 
-          // 5. Price Detection & Negotiation
-          const quotedPrice = extractPrice(messageText);
+          notify(telegramMsg);
+          await notifyWhatsApp(whatsappMsg);
 
-          if (quotedPrice) {
-            console.log(`[Webhook] Price detected: $${quotedPrice}`);
-            const decision = negotiationDecision(quotedPrice, {
-              minBudget: config.minBudget,
-              targetBudget: config.targetBudget,
-              maxBudget: config.maxBudget,
-            });
-
-            if (decision === 'counter') {
-              const counterMsg = await generateCounterOffer(creator.username, quotedPrice, config.targetBudget);
-              notify(`💬 *Counter offer* → @${escapeMd(creator.username)}:\n"${counterMsg}"`);
-              await enqueueDM('counter', { creatorId: creator.id, username: creator.username, message: counterMsg });
-              continue;
-            }
-
-            // Propose deal or accept
-            const deal = await createDeal(creator.id, quotedPrice);
-            sendDealCard(creator, deal);
-            continue;
-          }
-
-          // 6. Normal AI Conversation
-          const history = await getConversationHistory(creator.id);
-          const aiReply = await generateReply(history, creator.username);
-          
-          console.log(`[Webhook] AI generated reply: "${aiReply}"`);
-          await enqueueDM('reply', { creatorId: creator.id, username: creator.username, message: aiReply });
+          console.log(`[Webhook] Notified Telegram + WhatsApp. No reply sent to @${username}.`);
 
         } catch (err) {
           console.error(`[Webhook] Error processing message:`, err.message);

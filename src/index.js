@@ -2,22 +2,11 @@ import express from 'express';
 import 'dotenv/config';
 import { validateConfig, config } from './config.js';
 import { initDb, all } from './db.js';
-import { initBot, sendDealCard, notify, escapeMd } from './telegram/bot.js';
+import { initBot, notify, escapeMd } from './telegram/bot.js';
 import creatorsRouter from './routes/creators.js';
 import webhookRouter from './routes/webhook.js';
-import {
-  getCreatorByUsername,
-  getConversationHistory,
-  logIncomingMessage,
-} from './services/creatorService.js';
-import { createDeal } from './services/dealService.js';
-import {
-  generateReply,
-  extractPrice,
-  negotiationDecision,
-  generateCounterOffer,
-} from './ai/negotiate.js';
-import { enqueueDM } from './queues/dmQueue.js';
+import { getCreatorByUsername, logIncomingMessage } from './services/creatorService.js';
+import { notifyWhatsApp } from './services/whatsappService.js';
 import { startDiscoveryCron } from './jobs/discoveryJob.js';
 
 /* ─────────────────────────────────────────────────
@@ -25,10 +14,8 @@ import { startDiscoveryCron } from './jobs/discoveryJob.js';
 ───────────────────────────────────────────────── */
 validateConfig();
 
-// Init DB (async Postgres pool)
 await initDb();
 
-// Init Telegram bot (polling)
 initBot();
 
 const app = express();
@@ -62,14 +49,9 @@ app.get('/api/creators', async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────
-   Instagram Webhook (Simulated Testing)
+   Simulate Incoming Creator Reply (Testing)
+   Notifies Telegram + WhatsApp only — no reply sent.
 ───────────────────────────────────────────────── */
-
-
-/**
- * POST /instagram/webhook/simulate
- * Simulate a creator reply — use for full end-to-end testing without real Instagram.
- */
 app.post('/instagram/webhook/simulate', async (req, res) => {
   const { username, message } = req.body;
 
@@ -85,54 +67,12 @@ app.post('/instagram/webhook/simulate', async (req, res) => {
 
     console.log(`[Simulate] Incoming from @${creator.username}: "${message}"`);
 
-    // 1. Log incoming message
     await logIncomingMessage(creator.id, message);
 
-    // 2. Notify Telegram
-    notify(`📩 *@${escapeMd(creator.username)}* replied:\n\n"${message}"`);
+    notify(`📩 *@${escapeMd(creator.username)}* replied to your DM:\n\n"${message}"`);
+    await notifyWhatsApp(`📩 Creator @${creator.username} replied to your DM:\n\n"${message}"\n\nCheck Telegram for details.`);
 
-    // 3. Check bot state
-    if (creator.bot_state === 'paused') {
-      return res.json({ success: true, action: 'skipped_paused' });
-    }
-    if (creator.bot_state === 'manual') {
-      return res.json({ success: true, action: 'skipped_manual' });
-    }
-
-    // 4. Price detection → negotiation
-    const quotedPrice = extractPrice(message);
-
-    if (quotedPrice) {
-      console.log(`[Simulate] Price detected: $${quotedPrice}`);
-
-      const decision = negotiationDecision(quotedPrice, {
-        minBudget: config.minBudget,
-        targetBudget: config.targetBudget,
-        maxBudget: config.maxBudget,
-      });
-
-      console.log(`[Simulate] Decision: ${decision}`);
-
-      if (decision === 'counter') {
-        const counterMsg = await generateCounterOffer(creator.username, quotedPrice, config.targetBudget);
-        notify(`💬 *Counter offer* → @${escapeMd(creator.username)}:\n"${counterMsg}"`);
-        await enqueueDM('counter', { creatorId: creator.id, username: creator.username, message: counterMsg });
-        return res.json({ success: true, action: 'counter_offer', counterMsg });
-      }
-
-      // propose_deal or accept
-      const deal = await createDeal(creator.id, quotedPrice);
-      sendDealCard(creator, deal);
-      return res.json({ success: true, action: 'deal_proposed', deal });
-    }
-
-    // 5. No price — AI conversation reply
-    const history = await getConversationHistory(creator.id);
-    const aiReply = await generateReply(history, creator.username);
-
-    await enqueueDM('reply', { creatorId: creator.id, username: creator.username, message: aiReply });
-
-    res.json({ success: true, action: 'ai_reply', aiReply });
+    res.json({ success: true, action: 'notified', note: 'Telegram + WhatsApp notified. No reply sent to creator.' });
   } catch (err) {
     console.error('[Simulate] Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -146,10 +86,10 @@ app.listen(config.port, () => {
   console.log(`\n🚀 ClawBot running on http://localhost:${config.port}`);
   console.log(`   Telegram bot: polling ✓`);
   console.log(`   Instagram: ${config.instagramStubMode ? 'STUB mode 🧪' : 'REAL mode 📡'}`);
-  console.log(`   Budget: $${config.minBudget} – $${config.targetBudget} – $${config.maxBudget}`);
-  console.log(`   Discovery: every ${config.discoveryIntervalHours}h | min ${config.minFollowers.toLocaleString()} followers\n`);
+  console.log(`   Min followers: ${config.minFollowers.toLocaleString()}`);
+  console.log(`   Daily DM limit: ${config.dmDailyLimit}`);
+  console.log(`   Discovery: every ${config.discoveryIntervalHours}h\n`);
 
-  // Start auto-discovery cron job
   startDiscoveryCron();
 });
 
