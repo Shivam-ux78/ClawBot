@@ -38,6 +38,7 @@ export const config = {
 
   // Server
   port: Number(process.env.PORT) || 3000,
+  extensionSecretKey: process.env.EXTENSION_SECRET_KEY || 'default-secret-change-me',
 
   // Discovery Engine
   minFollowers: Number(process.env.MIN_FOLLOWERS) || 500000,

@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import 'dotenv/config';
 import { validateConfig, config } from './config.js';
 import { initDb, all } from './db.js';
@@ -45,6 +47,32 @@ app.get('/api/creators', async (req, res) => {
     res.json({ success: true, creators });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────
+   Update Cookies from Chrome Extension
+───────────────────────────────────────────────── */
+app.post('/api/cookies/update', (req, res) => {
+  const { secretKey, cookies } = req.body;
+
+  if (secretKey !== config.extensionSecretKey) {
+    console.warn('[API] Unauthorized cookie update attempt');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!cookies || !Array.isArray(cookies)) {
+    return res.status(400).json({ error: 'Invalid cookies payload' });
+  }
+
+  try {
+    const cookiesPath = path.resolve('www.instagram.com.cookies.json');
+    fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
+    console.log('[API] ✅ Instagram cookies updated from extension!');
+    res.json({ success: true, message: 'Cookies updated successfully' });
+  } catch (err) {
+    console.error('[API] Error saving cookies:', err.message);
+    res.status(500).json({ error: 'Failed to save cookies' });
   }
 });
 
