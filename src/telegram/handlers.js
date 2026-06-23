@@ -1,7 +1,7 @@
 import { run, get, all } from '../db.js';
 import { sendDealCard, notify } from './bot.js';
 import { config } from '../config.js';
-import { runDiscovery } from '../jobs/discoveryJob.js';
+import { runDiscovery, stopDiscoveryCron, resumeDiscoveryCron } from '../jobs/discoveryJob.js';
 
 /**
  * Register all Telegram message + callback handlers on the bot instance.
@@ -91,6 +91,26 @@ export function registerHandlers(bot) {
 
       if (text === '/deals') {
         await handleDeals(bot, chatId);
+        return;
+      }
+
+      if (text.startsWith('/stop')) {
+        const parts = text.split(' ');
+        const hours = parts.length > 1 ? parseInt(parts[1], 10) : null;
+        
+        if (hours && !isNaN(hours)) {
+          stopDiscoveryCron(hours);
+          bot.sendMessage(chatId, `⏸ *Discovery scan paused for ${hours} hours.*\nIt will resume automatically.`);
+        } else {
+          stopDiscoveryCron();
+          bot.sendMessage(chatId, '⏸ *Discovery scan paused indefinitely.*\nUse `/start_scan` to resume.', { parse_mode: 'Markdown' });
+        }
+        return;
+      }
+
+      if (text === '/start_scan') {
+        resumeDiscoveryCron();
+        bot.sendMessage(chatId, '▶️ *Discovery scan schedule resumed.*', { parse_mode: 'Markdown' });
         return;
       }
 
@@ -292,19 +312,21 @@ async function handleHelp(bot, chatId) {
     `❌ Reject → Discards creator`,
     ``,
     `*Discovery:*`,
-    `\`/discover\` — Manually trigger an Instagram scan now`,
-    `\`/collab @username\` — Manually add any creator for outreach`,
+    `/discover — Manually trigger an Instagram scan now`,
+    `/stop [hours] — Pause auto-discovery (e.g. /stop 12)`,
+    `/start_scan — Resume auto-discovery`,
+    `/collab @username — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,
-    `\`/pause @username\` — Stop AI replies`,
-    `\`/resume @username\` — Resume AI replies`,
-    `\`/manual @username\` — Hand off to you`,
+    `/pause @username — Stop AI replies`,
+    `/resume @username — Resume AI replies`,
+    `/manual @username — Hand off to you`,
     ``,
     `*Info:*`,
-    `\`/status @username\` — Creator status`,
-    `\`/list\` — Active pipeline`,
-    `\`/deals\` — Deal history`,
-    `\`/help\` — This message`,
+    `/status @username — Creator status`,
+    `/list — Active pipeline`,
+    `/deals — Deal history`,
+    `/help — This message`,
   ].join('\n');
 
   bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });

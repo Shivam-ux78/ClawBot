@@ -4,6 +4,10 @@ import { addCreator } from '../services/creatorService.js';
 import { notify } from '../telegram/bot.js';
 import { config } from '../config.js';
 
+let activeCronTask = null;
+let resumeTimer = null;
+export let isDiscoveryActive = true;
+
 /**
  * Runs the full discovery pipeline:
  * 1. Scrapes Instagram hashtags for couple creators
@@ -12,6 +16,10 @@ import { config } from '../config.js';
  * 4. Sends Telegram notifications for each new creator
  */
 export async function runDiscovery(isRescan = false) {
+  if (!isDiscoveryActive) {
+    console.log('[DiscoveryJob] Skipping run because discovery is paused.');
+    return;
+  }
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
   notify(`${label}... Looking for couple creators with 50k+ followers.`);
 
@@ -79,10 +87,53 @@ export function startDiscoveryCron() {
 
   console.log(`[DiscoveryJob] Cron scheduled: every ${intervalHours} hours`);
 
-  cron.schedule(cronExpr, () => {
+  activeCronTask = cron.schedule(cronExpr, () => {
     console.log('[DiscoveryJob] Cron triggered — starting discovery run...');
     runDiscovery().catch((err) => {
       console.error('[DiscoveryJob] Unhandled error in cron run:', err.message);
     });
   });
+}
+
+/**
+ * Pauses the discovery cron job.
+ * @param {number|null} hours Optional hours to pause for.
+ */
+export function stopDiscoveryCron(hours = null) {
+  isDiscoveryActive = false;
+  if (activeCronTask) {
+    activeCronTask.stop();
+  }
+  
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
+
+  if (hours) {
+    const ms = hours * 60 * 60 * 1000;
+    console.log(`[DiscoveryJob] Discovery paused for ${hours} hours.`);
+    resumeTimer = setTimeout(() => {
+      resumeDiscoveryCron();
+      notify('▶️ *Discovery scan automatically resumed* after scheduled pause.');
+    }, ms);
+  } else {
+    console.log(`[DiscoveryJob] Discovery paused indefinitely.`);
+  }
+}
+
+/**
+ * Resumes the discovery cron job.
+ */
+export function resumeDiscoveryCron() {
+  isDiscoveryActive = true;
+  if (activeCronTask) {
+    activeCronTask.start();
+  }
+  
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
+  console.log(`[DiscoveryJob] Discovery resumed.`);
 }
