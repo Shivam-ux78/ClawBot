@@ -1,6 +1,6 @@
 import { run, get, all } from '../db.js';
 import { enqueueDM } from '../queues/dmQueue.js';
-import { bot, sendApprovalCard } from '../telegram/bot.js';
+import { bot } from '../telegram/bot.js';
 import { config } from '../config.js';
 import { getProfileInfo } from '../instagram/client.js';
 import { notifyWhatsApp } from './whatsappService.js';
@@ -36,16 +36,15 @@ export async function addCreator({ username, followers, niche, bio }) {
 
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);
 
-  // Fire Telegram approval card
-  sendApprovalCard(creator);
+  // Fire Telegram notification
+  bot().sendMessage(config.telegramChatId, `🔍 New creator found!\nUserID: ${creator.id}\n👤 @${creator.username}`, { parse_mode: 'Markdown' }).catch(() => {});
 
   // Notify WhatsApp
   await notifyWhatsApp(
     `🔍 New creator found!\n\n` +
     `👤 @${creator.username}\n` +
     `👥 Followers: ${creator.followers ? Number(creator.followers).toLocaleString() : 'N/A'}\n` +
-    `🏷 Niche: ${creator.niche || 'N/A'}\n\n` +
-    `Check Telegram to approve and send outreach DM.`
+    `🏷 Niche: ${creator.niche || 'N/A'}`
   );
 
   return creator;

@@ -9,7 +9,7 @@ import { config } from '../config.js';
  * 1. Scrapes Instagram hashtags for couple creators
  * 2. Filters by follower count
  * 3. Adds new creators to DB (skips duplicates)
- * 4. Sends Telegram approval cards for each new creator
+ * 4. Sends Telegram notifications for each new creator
  */
 export async function runDiscovery(isRescan = false) {
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
@@ -25,7 +25,7 @@ export async function runDiscovery(isRescan = false) {
       onProgress: (msg) => notify(msg),
       onCreatorFound: async (creator) => {
         try {
-          // Process and send the approval card IMMEDIATELY
+          // Process and send the notification IMMEDIATELY
           await addCreator({ 
             username: creator.username, 
             followers: creator.followers, 
@@ -59,9 +59,8 @@ export async function runDiscovery(isRescan = false) {
 
     notify(
       `🔍 *Scan complete!*\n\n` +
-      `✅ New approval cards sent: *${added}*\n` +
-      `⏭ Already in pipeline: *${skipped}*\n\n` +
-      `Approve or Reject each card above 👆`
+      `✅ New notifications sent: *${added}*\n` +
+      `⏭ Already in pipeline: *${skipped}*`
     );
 
   } catch (err) {

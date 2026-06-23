@@ -43,44 +43,6 @@ export function escapeMd(str) {
 }
 
 /**
- * Send Stage 1 creator approval card.
- * @param {object} creator
- */
-export function sendApprovalCard(creator) {
-  const bot = getBot();
-  const bioSnippet = creator.bio
-    ? `📝 Bio: _${escapeMd(creator.bio.slice(0, 80))}${creator.bio.length > 80 ? '...' : ''}_`
-    : null;
-
-  const text = [
-    `🔍 *NEW CREATOR FOUND*`,
-    ``,
-    `👤 Username: @${escapeMd(creator.username)}`,
-    `👥 Followers: ${creator.followers ? creator.followers.toLocaleString() : 'N/A'}`,
-    creator.niche ? `🏷 Niche: ${escapeMd(creator.niche)}` : null,
-    bioSnippet,
-    ``,
-    `*What would you like to do?*`,
-    `1️⃣ Approve — Send outreach DM`,
-    `2️⃣ Reject — Skip to next`,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  bot.sendMessage(config.telegramChatId, text, {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: '✅ 1 — Approve', callback_data: `approve:${creator.id}` },
-          { text: '❌ 2 — Reject', callback_data: `reject:${creator.id}` },
-        ],
-      ],
-    },
-  });
-}
-
-/**
  * Send Stage 5 deal proposal card.
  * @param {object} creator
  * @param {object} deal
