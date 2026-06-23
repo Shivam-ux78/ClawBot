@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import { config } from '../config.js';
 import fs from 'fs';
 import path from 'path';
+import { connection } from '../queues/dmQueue.js';
 
 const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
 
@@ -31,14 +32,15 @@ export async function getProfileInfo(username) {
     return { followers: null };
   }
 
-  let cookiesStr;
-  if (process.env.IG_COOKIES_JSON) {
-    cookiesStr = process.env.IG_COOKIES_JSON;
-  } else if (fs.existsSync(COOKIES_PATH)) {
-    cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
-  } else {
-    console.warn('[getProfileInfo] No cookies found, skipping follower lookup.');
-    return { followers: null };
+  let cookiesStr = await connection.get('ig_cookies');
+  
+  if (!cookiesStr) {
+    if (fs.existsSync(COOKIES_PATH)) {
+      cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+    } else {
+      console.warn('[getProfileInfo] No cookies found, skipping follower lookup.');
+      return { followers: null };
+    }
   }
 
   let cookies;
@@ -111,16 +113,15 @@ async function sendStub(username, message, extras) {
    REAL — Puppeteer Hidden Browser
 ───────────────────────────────────────────────── */
 async function sendReal(username, message, extras) {
-  let cookiesStr;
+  let cookiesStr = await connection.get('ig_cookies');
   
-  if (process.env.IG_COOKIES_JSON) {
-    // Cloud environment (Railway/Render)
-    cookiesStr = process.env.IG_COOKIES_JSON;
-  } else if (fs.existsSync(COOKIES_PATH)) {
-    // Local development
-    cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
-  } else {
-    throw new Error(`Cookies not found! The server may have restarted. Please click 'Save & Sync Now' in your ClawBot Chrome Extension to push fresh cookies.`);
+  if (!cookiesStr) {
+    if (fs.existsSync(COOKIES_PATH)) {
+      // Local development fallback
+      cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+    } else {
+      throw new Error(`Cookies not found! The server may have restarted. Please click 'Save & Sync Now' in your ClawBot Chrome Extension to push fresh cookies to Redis.`);
+    }
   }
 
   let cookies;

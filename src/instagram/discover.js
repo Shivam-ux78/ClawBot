@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
+import { connection } from '../queues/dmQueue.js';
+
 const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
 
 /**
@@ -56,13 +58,14 @@ export async function discoverCreators({
   onCreatorFound = null,
 } = {}) {
 
-  let cookiesStr;
-  if (process.env.IG_COOKIES_JSON) {
-    cookiesStr = process.env.IG_COOKIES_JSON;
-  } else if (fs.existsSync(COOKIES_PATH)) {
-    cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
-  } else {
-    throw new Error('Cookies not found! Provide IG_COOKIES_JSON in cloud or cookies.json locally.');
+  let cookiesStr = await connection.get('ig_cookies');
+  
+  if (!cookiesStr) {
+    if (fs.existsSync(COOKIES_PATH)) {
+      cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+    } else {
+      throw new Error(`Cookies not found! Please click 'Save & Sync Now' in your ClawBot Chrome Extension to push fresh cookies to Redis.`);
+    }
   }
 
   let cookies;

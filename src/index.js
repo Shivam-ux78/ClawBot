@@ -10,6 +10,7 @@ import webhookRouter from './routes/webhook.js';
 import { getCreatorByUsername, logIncomingMessage } from './services/creatorService.js';
 import { notifyWhatsApp } from './services/whatsappService.js';
 import { startDiscoveryCron } from './jobs/discoveryJob.js';
+import { connection } from './queues/dmQueue.js';
 
 /* ─────────────────────────────────────────────────
    Boot Sequence
@@ -53,7 +54,7 @@ app.get('/api/creators', async (req, res) => {
 /* ─────────────────────────────────────────────────
    Update Cookies from Chrome Extension
 ───────────────────────────────────────────────── */
-app.post('/api/cookies/update', (req, res) => {
+app.post('/api/cookies/update', async (req, res) => {
   const { secretKey, cookies } = req.body;
 
   if (secretKey !== config.extensionSecretKey) {
@@ -66,12 +67,16 @@ app.post('/api/cookies/update', (req, res) => {
   }
 
   try {
+    await connection.set('ig_cookies', JSON.stringify(cookies));
+    
+    // Also save locally as a backup for local dev
     const cookiesPath = path.resolve('www.instagram.com.cookies.json');
     fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
-    console.log('[API] ✅ Instagram cookies updated from extension!');
+    
+    console.log('[API] ✅ Instagram cookies updated in Redis from extension!');
     res.json({ success: true, message: 'Cookies updated successfully' });
   } catch (err) {
-    console.error('[API] Error saving cookies:', err.message);
+    console.error('[API] Error saving cookies to Redis:', err.message);
     res.status(500).json({ error: 'Failed to save cookies' });
   }
 });
