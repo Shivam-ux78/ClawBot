@@ -120,7 +120,7 @@ async function sendReal(username, message, extras) {
     // Local development
     cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
   } else {
-    throw new Error(`Cookies not found! Provide IG_COOKIES_JSON in cloud or cookies.json locally.`);
+    throw new Error(`Cookies not found! The server may have restarted. Please click 'Save & Sync Now' in your ClawBot Chrome Extension to push fresh cookies.`);
   }
 
   let cookies;

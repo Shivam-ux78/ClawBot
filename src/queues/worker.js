@@ -57,6 +57,8 @@ const worker = new Worker(
   {
     connection,
     concurrency: 1,
+    stalledInterval: 300000, // Check for stalled jobs every 5 mins instead of 30s (saves Upstash API requests)
+    metrics: null,
   }
 );
 
