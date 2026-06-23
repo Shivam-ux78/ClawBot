@@ -70,8 +70,8 @@ router.post('/', async (req, res) => {
           await logIncomingMessage(creator.id, messageText);
 
           // 4. Notify Telegram + WhatsApp — no reply sent back to creator
-          const telegramMsg = `📩 *@${escapeMd(creator.username)}* replied to your DM:\n\n"${messageText}"`;
-          const whatsappMsg = `📩 Creator @${creator.username} replied to your DM:\n\n"${messageText}"\n\nCheck Telegram for details.`;
+          const telegramMsg = `👤 @${escapeMd(creator.username)} user response please handle it`;
+          const whatsappMsg = `👤 @${creator.username} user response please handle it`;
 
           notify(telegramMsg);
           await notifyWhatsApp(whatsappMsg);

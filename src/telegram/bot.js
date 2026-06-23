@@ -43,6 +43,40 @@ export function escapeMd(str) {
 }
 
 /**
+ * Send interactive card for Stage 1 approval.
+ * @param {object} creator 
+ */
+export function sendApprovalCard(creator) {
+  const bot = getBot();
+  const followersStr = creator.followers ? Number(creator.followers).toLocaleString() : 'Unknown';
+  
+  const text = [
+    `🎉 *New Creator Found*`,
+    ``,
+    `👤 @${escapeMd(creator.username)}`,
+    `👥 Followers: ${followersStr}`,
+    creator.niche ? `🏷 Niche: ${creator.niche}` : '',
+    ``,
+    `*Action Required:*`,
+  ].join('\n');
+
+  bot.sendMessage(config.telegramChatId, text, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '✅ Approve', callback_data: `approve:${creator.id}` },
+          { text: '❌ Reject', callback_data: `reject:${creator.id}` },
+        ],
+        [
+          { text: '🔍 View Profile', url: `https://instagram.com/${creator.username}` }
+        ]
+      ],
+    },
+  });
+}
+
+/**
  * Send Stage 5 deal proposal card.
  * @param {object} creator
  * @param {object} deal
