@@ -103,12 +103,12 @@ export function registerHandlers(bot) {
           bot.sendMessage(chatId, `⏸ *Discovery scan paused for ${hours} hours.*\nIt will resume automatically.`);
         } else {
           stopDiscoveryCron();
-          bot.sendMessage(chatId, '⏸ *Discovery scan paused indefinitely.*\nUse `/start_scan` to resume.', { parse_mode: 'Markdown' });
+          bot.sendMessage(chatId, '⏸ *Discovery scan paused indefinitely.*\nUse `/startscan` to resume.', { parse_mode: 'Markdown' });
         }
         return;
       }
 
-      if (text === '/start_scan') {
+      if (text === '/startscan') {
         resumeDiscoveryCron();
         bot.sendMessage(chatId, '▶️ *Discovery scan schedule resumed.*', { parse_mode: 'Markdown' });
         return;
@@ -313,8 +313,8 @@ async function handleHelp(bot, chatId) {
     ``,
     `*Discovery:*`,
     `/discover — Manually trigger an Instagram scan now`,
-    `/stop [hours] — Pause auto-discovery (e.g. /stop 12)`,
-    `/start_scan — Resume auto-discovery`,
+    `/stop <hours> — Pause auto-discovery (e.g. /stop 12)`,
+    `/startscan — Resume auto-discovery`,
     `/collab @username — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,
