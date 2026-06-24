@@ -2,6 +2,10 @@ import { run, get, all } from '../db.js';
 import { sendDealCard, notify } from './bot.js';
 import { config } from '../config.js';
 import { runDiscovery, stopDiscoveryCron, resumeDiscoveryCron } from '../jobs/discoveryJob.js';
+import fs from 'fs';
+import path from 'path';
+
+const pendingChatIdChanges = new Map();
 
 /**
  * Register all Telegram message + callback handlers on the bot instance.
@@ -51,6 +55,43 @@ export function registerHandlers(bot) {
     const text = msg.text?.trim();
 
     if (!text) return;
+
+    if (text.startsWith('/chatID ')) {
+      const newChatId = text.split(' ')[1];
+      if (newChatId) {
+        pendingChatIdChanges.set(chatId, newChatId);
+        return bot.sendMessage(chatId, 'Please enter the password to update the chat ID.');
+      }
+    }
+
+    if (pendingChatIdChanges.has(chatId)) {
+      if (text === 'Admin123@') {
+        const newChatId = pendingChatIdChanges.get(chatId);
+        pendingChatIdChanges.delete(chatId);
+        
+        try {
+          const envPath = path.resolve(process.cwd(), '.env');
+          let envContent = fs.readFileSync(envPath, 'utf8');
+          
+          if (envContent.includes('TELEGRAM_CHAT_ID=')) {
+            envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${newChatId}`);
+          } else {
+            envContent += `\nTELEGRAM_CHAT_ID=${newChatId}\n`;
+          }
+          fs.writeFileSync(envPath, envContent);
+          
+          config.telegramChatId = newChatId;
+          
+          return bot.sendMessage(chatId, `✅ Chat ID successfully updated to ${newChatId}`);
+        } catch (err) {
+          console.error('Error updating .env file:', err);
+          return bot.sendMessage(chatId, `⚠️ Error updating Chat ID in .env file: ${err.message}`);
+        }
+      } else {
+        pendingChatIdChanges.delete(chatId);
+        return bot.sendMessage(chatId, '❌ Incorrect password. Chat ID update cancelled.');
+      }
+    }
 
     // Only respond to our control chat
     if (String(chatId) !== String(config.telegramChatId)) return;
