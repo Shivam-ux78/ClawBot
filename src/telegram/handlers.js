@@ -362,6 +362,7 @@ async function handleHelp(bot, chatId) {
     `/pause @username — Stop AI replies`,
     `/resume @username — Resume AI replies`,
     `/manual @username — Hand off to you`,
+    `/chatID <id> — Change control to a new chat`,
     ``,
     `*Info:*`,
     `/status @username — Creator status`,
