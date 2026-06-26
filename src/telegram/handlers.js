@@ -71,21 +71,28 @@ export function registerHandlers(bot) {
         
         try {
           const envPath = path.resolve(process.cwd(), '.env');
-          let envContent = fs.readFileSync(envPath, 'utf8');
           
-          if (envContent.includes('TELEGRAM_CHAT_ID=')) {
-            envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${newChatId}`);
-          } else {
-            envContent += `\nTELEGRAM_CHAT_ID=${newChatId}\n`;
+          if (fs.existsSync(envPath)) {
+            let envContent = fs.readFileSync(envPath, 'utf8');
+            if (envContent.includes('TELEGRAM_CHAT_ID=')) {
+              envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${newChatId}`);
+            } else {
+              envContent += `\nTELEGRAM_CHAT_ID=${newChatId}\n`;
+            }
+            fs.writeFileSync(envPath, envContent);
           }
-          fs.writeFileSync(envPath, envContent);
           
           config.telegramChatId = newChatId;
           
-          return bot.sendMessage(chatId, `✅ Chat ID successfully updated to ${newChatId}`);
+          let responseMsg = `✅ Chat ID successfully updated to ${newChatId}.`;
+          if (!fs.existsSync(envPath)) {
+            responseMsg += `\n\n⚠️ *Note:* You are running in a deployed environment without a \`.env\` file. The chat ID is updated in-memory for now, but to make this permanent across restarts, you must update the \`TELEGRAM_CHAT_ID\` environment variable in your deployment dashboard.`;
+          }
+          
+          return bot.sendMessage(chatId, responseMsg, { parse_mode: 'Markdown' });
         } catch (err) {
-          console.error('Error updating .env file:', err);
-          return bot.sendMessage(chatId, `⚠️ Error updating Chat ID in .env file: ${err.message}`);
+          console.error('Error updating Chat ID:', err);
+          return bot.sendMessage(chatId, `⚠️ Error updating Chat ID: ${err.message}`);
         }
       } else {
         pendingChatIdChanges.delete(chatId);
