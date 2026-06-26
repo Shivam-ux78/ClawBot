@@ -84,12 +84,16 @@ export function registerHandlers(bot) {
           
           config.telegramChatId = newChatId;
           
-          let responseMsg = `✅ Chat ID successfully updated to ${newChatId}.`;
-          if (!fs.existsSync(envPath)) {
-            responseMsg += `\n\n⚠️ *Note:* You are running in a deployed environment without a \`.env\` file. The chat ID is updated in-memory for now, but to make this permanent across restarts, you must update the \`TELEGRAM_CHAT_ID\` environment variable in your deployment dashboard.`;
+          try {
+            await run(`
+              INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_ID', $1)
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            `, [newChatId]);
+          } catch (dbErr) {
+            console.error('Error saving Chat ID to DB:', dbErr);
           }
           
-          return bot.sendMessage(chatId, responseMsg, { parse_mode: 'Markdown' });
+          return bot.sendMessage(chatId, `✅ Chat ID successfully updated to ${newChatId} (saved to database).`);
         } catch (err) {
           console.error('Error updating Chat ID:', err);
           return bot.sendMessage(chatId, `⚠️ Error updating Chat ID: ${err.message}`);

@@ -109,4 +109,12 @@ async function runSchema(pool) {
       sent_at     TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key         VARCHAR(255) PRIMARY KEY,
+      value       TEXT NOT NULL,
+      updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
 }

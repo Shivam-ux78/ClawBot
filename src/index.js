@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
 import { validateConfig, config } from './config.js';
-import { initDb, all } from './db.js';
+import { initDb, all, get } from './db.js';
 import { initBot, notify, escapeMd } from './telegram/bot.js';
 import creatorsRouter from './routes/creators.js';
 import webhookRouter from './routes/webhook.js';
@@ -18,6 +18,17 @@ import { connection } from './queues/dmQueue.js';
 validateConfig();
 
 await initDb();
+
+// Override chat ID from database if present (persists across cloud restarts)
+try {
+  const dbChatId = await get("SELECT value FROM settings WHERE key = 'TELEGRAM_CHAT_ID'");
+  if (dbChatId && dbChatId.value) {
+    config.telegramChatId = dbChatId.value;
+    console.log(`[Config] Loaded TELEGRAM_CHAT_ID from database: ${config.telegramChatId}`);
+  }
+} catch (err) {
+  console.error('[Config] Error loading settings from DB:', err.message);
+}
 
 initBot();
 
