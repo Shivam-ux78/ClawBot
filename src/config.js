@@ -3,7 +3,7 @@ import 'dotenv/config';
 export const config = {
   // Telegram
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
-  telegramChatId: process.env.TELEGRAM_CHAT_ID,
+  telegramChatIds: process.env.TELEGRAM_CHAT_ID ? process.env.TELEGRAM_CHAT_ID.split(',').map(id => id.trim()) : [],
 
   // OpenAI
   openaiApiKey: process.env.OPENAI_API_KEY,

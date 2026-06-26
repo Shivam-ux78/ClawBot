@@ -60,19 +60,21 @@ export function sendApprovalCard(creator) {
     `*Action Required:*`,
   ].join('\n');
 
-  bot.sendMessage(config.telegramChatId, text, {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: '✅ Approve', callback_data: `approve:${creator.id}` },
-          { text: '❌ Reject', callback_data: `reject:${creator.id}` },
+  config.telegramChatIds.forEach(chatId => {
+    bot.sendMessage(chatId, text, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Approve', callback_data: `approve:${creator.id}` },
+            { text: '❌ Reject', callback_data: `reject:${creator.id}` },
+          ],
+          [
+            { text: '🔍 View Profile', url: `https://instagram.com/${creator.username}` }
+          ]
         ],
-        [
-          { text: '🔍 View Profile', url: `https://instagram.com/${creator.username}` }
-        ]
-      ],
-    },
+      },
+    }).catch(err => console.error(`[Telegram] sendApprovalCard failed for ${chatId}:`, err.message));
   });
 }
 
@@ -94,16 +96,18 @@ export function sendDealCard(creator, deal) {
     `2️⃣ Reject — Decline gracefully`,
   ].join('\n');
 
-  bot.sendMessage(config.telegramChatId, text, {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: '✅ 1 — Accept Deal', callback_data: `deal_accept:${deal.id}` },
-          { text: '❌ 2 — Reject Deal', callback_data: `deal_reject:${deal.id}` },
+  config.telegramChatIds.forEach(chatId => {
+    bot.sendMessage(chatId, text, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ 1 — Accept Deal', callback_data: `deal_accept:${deal.id}` },
+            { text: '❌ 2 — Reject Deal', callback_data: `deal_reject:${deal.id}` },
+          ],
         ],
-      ],
-    },
+      },
+    }).catch(err => console.error(`[Telegram] sendDealCard failed for ${chatId}:`, err.message));
   });
 }
 
@@ -112,7 +116,10 @@ export function sendDealCard(creator, deal) {
  * @param {string} text
  */
 export function notify(text) {
-  getBot()
-    .sendMessage(config.telegramChatId, text, { parse_mode: 'Markdown' })
-    .catch((err) => console.error('[Telegram] notify failed:', err.message));
+  const botInstance = getBot();
+  config.telegramChatIds.forEach(chatId => {
+    botInstance
+      .sendMessage(chatId, text, { parse_mode: 'Markdown' })
+      .catch((err) => console.error(`[Telegram] notify failed for ${chatId}:`, err.message));
+  });
 }

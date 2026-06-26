@@ -19,14 +19,16 @@ validateConfig();
 
 await initDb();
 
-// Override chat ID from database if present (persists across cloud restarts)
+// Override chat IDs from database if present (persists across cloud restarts)
 try {
-  const dbChatId = await get("SELECT value FROM settings WHERE key = 'TELEGRAM_CHAT_ID'");
-  if (dbChatId && dbChatId.value) {
-    config.telegramChatId = dbChatId.value;
-    console.log(`[Config] Loaded TELEGRAM_CHAT_ID from database: ${config.telegramChatId}`);
+  const dbChatIds = await get("SELECT value FROM settings WHERE key = 'TELEGRAM_CHAT_IDS'");
+  if (dbChatIds && dbChatIds.value) {
+    config.telegramChatIds = JSON.parse(dbChatIds.value);
+    console.log(`[Config] Loaded TELEGRAM_CHAT_IDS from database:`, config.telegramChatIds);
   }
 } catch (err) {
+  console.error('[Config] Error loading settings from DB:', err.message);
+}
   console.error('[Config] Error loading settings from DB:', err.message);
 }
 

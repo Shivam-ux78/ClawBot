@@ -5,7 +5,7 @@ import { runDiscovery, stopDiscoveryCron, resumeDiscoveryCron } from '../jobs/di
 import fs from 'fs';
 import path from 'path';
 
-const pendingChatIdChanges = new Map();
+const pendingIdActions = new Map();
 
 /**
  * Register all Telegram message + callback handlers on the bot instance.
@@ -56,56 +56,77 @@ export function registerHandlers(bot) {
 
     if (!text) return;
 
-    if (text.startsWith('/chatID ')) {
+    if (text.startsWith('/AddID ')) {
       const newChatId = text.split(' ')[1];
       if (newChatId) {
-        pendingChatIdChanges.set(chatId, newChatId);
-        return bot.sendMessage(chatId, 'Please enter the password to update the chat ID.');
+        pendingIdActions.set(chatId, { action: 'add', target: newChatId });
+        return bot.sendMessage(chatId, 'Please enter the password to add the Chat ID.');
       }
     }
 
-    if (pendingChatIdChanges.has(chatId)) {
+    if (text.startsWith('/RemoveID ')) {
+      const targetId = text.split(' ')[1];
+      if (targetId) {
+        pendingIdActions.set(chatId, { action: 'remove', target: targetId });
+        return bot.sendMessage(chatId, 'Please enter the password to remove the Chat ID.');
+      }
+    }
+
+    if (text === '/checkTotalID') {
+      if (!config.telegramChatIds.includes(String(chatId))) return; // only admins can check
+      const list = config.telegramChatIds.length > 0 ? config.telegramChatIds.join('\n') : 'None';
+      return bot.sendMessage(chatId, `📋 *Registered Admin Chat IDs:*\n${list}`, { parse_mode: 'Markdown' });
+    }
+
+    if (pendingIdActions.has(chatId)) {
       if (text === 'Admin123@') {
-        const newChatId = pendingChatIdChanges.get(chatId);
-        pendingChatIdChanges.delete(chatId);
+        const { action, target } = pendingIdActions.get(chatId);
+        pendingIdActions.delete(chatId);
+        
+        let newIds = [...config.telegramChatIds];
+        if (action === 'add') {
+          if (!newIds.includes(target)) newIds.push(target);
+        } else if (action === 'remove') {
+          newIds = newIds.filter(id => id !== target);
+        }
         
         try {
           const envPath = path.resolve(process.cwd(), '.env');
-          
           if (fs.existsSync(envPath)) {
             let envContent = fs.readFileSync(envPath, 'utf8');
+            const idsString = newIds.join(',');
             if (envContent.includes('TELEGRAM_CHAT_ID=')) {
-              envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${newChatId}`);
+              envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${idsString}`);
             } else {
-              envContent += `\nTELEGRAM_CHAT_ID=${newChatId}\n`;
+              envContent += `\nTELEGRAM_CHAT_ID=${idsString}\n`;
             }
             fs.writeFileSync(envPath, envContent);
           }
           
-          config.telegramChatId = newChatId;
+          config.telegramChatIds = newIds;
           
           try {
             await run(`
-              INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_ID', $1)
+              INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_IDS', $1)
               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-            `, [newChatId]);
+            `, [JSON.stringify(newIds)]);
           } catch (dbErr) {
-            console.error('Error saving Chat ID to DB:', dbErr);
+            console.error('Error saving Chat IDs to DB:', dbErr);
           }
           
-          return bot.sendMessage(chatId, `✅ Chat ID successfully updated to ${newChatId} (saved to database).`);
+          return bot.sendMessage(chatId, `✅ Chat ID successfully ${action === 'add' ? 'added' : 'removed'}: ${target} (saved to database).`);
         } catch (err) {
-          console.error('Error updating Chat ID:', err);
-          return bot.sendMessage(chatId, `⚠️ Error updating Chat ID: ${err.message}`);
+          console.error('Error updating Chat IDs:', err);
+          return bot.sendMessage(chatId, `⚠️ Error updating Chat IDs: ${err.message}`);
         }
       } else {
-        pendingChatIdChanges.delete(chatId);
-        return bot.sendMessage(chatId, '❌ Incorrect password. Chat ID update cancelled.');
+        pendingIdActions.delete(chatId);
+        return bot.sendMessage(chatId, '❌ Incorrect password. Action cancelled.');
       }
     }
 
     // Only respond to our control chat
-    if (String(chatId) !== String(config.telegramChatId)) return;
+    if (!config.telegramChatIds.includes(String(chatId))) return;
 
     try {
       if (text.startsWith('/pause')) {
@@ -373,7 +394,9 @@ async function handleHelp(bot, chatId) {
     `/pause @username — Stop AI replies`,
     `/resume @username — Resume AI replies`,
     `/manual @username — Hand off to you`,
-    `/chatID <id> — Change control to a new chat`,
+    `/AddID <id> — Add a new Admin Chat ID`,
+    `/RemoveID <id> — Remove an Admin Chat ID`,
+    `/checkTotalID — List all Admin Chat IDs`,
     ``,
     `*Info:*`,
     `/status @username — Creator status`,
