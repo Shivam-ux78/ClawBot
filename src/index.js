@@ -29,8 +29,6 @@ try {
 } catch (err) {
   console.error('[Config] Error loading settings from DB:', err.message);
 }
-  console.error('[Config] Error loading settings from DB:', err.message);
-}
 
 initBot();
 
