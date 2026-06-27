@@ -41,7 +41,8 @@ export const config = {
   extensionSecretKey: process.env.EXTENSION_SECRET_KEY || 'default-secret-change-me',
 
   // Discovery Engine
-  minFollowers: Number(process.env.MIN_FOLLOWERS) || 500000,
+  minFollowers: Number(process.env.MIN_FOLLOWERS) || 3000,
+  maxFollowers: Number(process.env.MAX_FOLLOWERS) || 10000,
   discoveryHashtags: process.env.DISCOVERY_HASHTAGS
     ? process.env.DISCOVERY_HASHTAGS.split(',').map(h => h.trim())
     : ['usacouples', 'americancouples', 'couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'partnercontent'],

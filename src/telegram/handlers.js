@@ -187,6 +187,18 @@ export function registerHandlers(bot) {
         return;
       }
 
+      if (text === '/Auto') {
+        const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
+        setAutoDMActive(true);
+        return bot.sendMessage(chatId, '🚀 *Auto DM Mode Enabled*\nCreators found during scanning will be automatically approved and DM\'d without needing confirmation.', { parse_mode: 'Markdown' });
+      }
+
+      if (text === '/AutoStop') {
+        const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
+        setAutoDMActive(false);
+        return bot.sendMessage(chatId, '🛑 *Auto DM Mode Disabled*\nCreators found will now require manual approval again.', { parse_mode: 'Markdown' });
+      }
+
       if (text === '/discover') {
         bot.sendMessage(chatId, '🔍 Starting manual discovery scan... This may take a few minutes.');
         runDiscovery().catch((err) => {
@@ -388,6 +400,8 @@ async function handleHelp(bot, chatId) {
     `/discover — Manually trigger an Instagram scan now`,
     `/stop <hours> — Pause auto-discovery (e.g. /stop 12)`,
     `/startscan — Resume auto-discovery`,
+    `/Auto — Enable auto-approval and auto-DM (skip confirmation)`,
+    `/AutoStop — Disable auto-approval (require confirmation)`,
     `/collab @username — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,

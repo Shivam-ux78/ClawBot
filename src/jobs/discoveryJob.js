@@ -7,6 +7,11 @@ import { config } from '../config.js';
 let activeCronTask = null;
 let resumeTimer = null;
 export let isDiscoveryActive = true;
+export let isAutoDMActive = false;
+
+export function setAutoDMActive(state) {
+  isAutoDMActive = state;
+}
 
 /**
  * Runs the full discovery pipeline:
@@ -21,27 +26,41 @@ export async function runDiscovery(isRescan = false) {
     return;
   }
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
-  notify(`${label}... Looking for couple creators with 50k+ followers.`);
+  notify(`${label}... Looking for couple creators with 3k-10k followers.`);
 
   let added = 0;
   let skipped = 0;
 
   try {
     const creators = await discoverCreators({
-      minFollowers: config.minFollowers ?? 50000,
+      minFollowers: config.minFollowers ?? 3000,
+      maxFollowers: config.maxFollowers ?? 10000,
       maxPerRun: 5, // Limit to 5 per scan as requested
       onProgress: (msg) => notify(msg),
       onCreatorFound: async (creator) => {
         try {
           // Process and send the notification IMMEDIATELY
-          await addCreator({ 
+          const addedCreator = await addCreator({ 
             username: creator.username, 
             followers: creator.followers, 
             niche: 'couple', 
-            bio: creator.bio 
+            bio: creator.bio,
+            skipApprovalCard: isAutoDMActive
           });
           added++;
           console.log(`[DiscoveryJob] ✅ Added @${creator.username}`);
+
+          if (isAutoDMActive) {
+            console.log(`[DiscoveryJob] Auto DM mode active, auto-approving @${creator.username}`);
+            const { approveCreator } = await import('../services/creatorService.js');
+            await approveCreator(addedCreator.id, {
+              websiteUrl: 'https://makeable.nyc/',
+              postLinks: [
+                'https://www.instagram.com/makeableofficial/'
+              ]
+            });
+            notify(`🚀 *Auto-Approved & DM Queued:* @${addedCreator.username}`);
+          }
         } catch (err) {
           skipped++;
           console.log(`[DiscoveryJob] Skipped @${creator.username}: ${err.message}`);

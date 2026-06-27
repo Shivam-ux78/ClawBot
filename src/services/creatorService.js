@@ -10,9 +10,9 @@ import { notifyWhatsApp } from './whatsappService.js';
 ───────────────────────────────────────────────── */
 
 /**
- * Add a new creator and trigger Stage 1 Telegram approval.
+ * Add a new creator and trigger Stage 1 Telegram approval (if not skipped).
  */
-export async function addCreator({ username, followers, niche, bio }) {
+export async function addCreator({ username, followers, niche, bio, skipApprovalCard = false }) {
   const existing = await get('SELECT * FROM creators WHERE username = $1', [username]);
   if (existing) {
     throw new Error(`Creator @${username} already exists (state: ${existing.state})`);
@@ -37,10 +37,12 @@ export async function addCreator({ username, followers, niche, bio }) {
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);
 
   // Fire Telegram notification
-  try {
-    sendApprovalCard(creator);
-  } catch (err) {
-    console.error('[CreatorService] Failed to send approval card:', err.message);
+  if (!skipApprovalCard) {
+    try {
+      sendApprovalCard(creator);
+    } catch (err) {
+      console.error('[CreatorService] Failed to send approval card:', err.message);
+    }
   }
 
   // Notify WhatsApp

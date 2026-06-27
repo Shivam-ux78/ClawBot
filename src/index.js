@@ -130,7 +130,7 @@ app.listen(config.port, () => {
   console.log(`\n🚀 ClawBot running on http://localhost:${config.port}`);
   console.log(`   Telegram bot: polling ✓`);
   console.log(`   Instagram: ${config.instagramStubMode ? 'STUB mode 🧪' : 'REAL mode 📡'}`);
-  console.log(`   Min followers: ${config.minFollowers.toLocaleString()}`);
+  console.log(`   Follower range: ${config.minFollowers.toLocaleString()} - ${config.maxFollowers.toLocaleString()}`);
   console.log(`   Daily DM limit: ${config.dmDailyLimit}`);
   console.log(`   Discovery: every ${config.discoveryIntervalHours}h\n`);
 

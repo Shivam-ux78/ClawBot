@@ -22,7 +22,7 @@ export async function getTrendingHashtags() {
           role: 'user',
           content:
             'Give me 10 currently trending Instagram hashtags used by US-based couple content creators ' +
-            'with large followings (50k+). Pick hashtags with at least 1 million posts. ' +
+            'with followings between 3k and 10k. Pick hashtags with at least 100k posts. ' +
             'Return ONLY a JSON array of strings WITHOUT the # symbol. ' +
             'Example: ["couplegoals", "relationshipgoals"]',
         },
@@ -51,7 +51,8 @@ export async function getTrendingHashtags() {
  *  4. Pass if followers >= minFollowers (bio filter removed — user approves in Telegram)
  */
 export async function discoverCreators({
-  minFollowers = config.minFollowers ?? 50000,
+  minFollowers = config.minFollowers ?? 3000,
+  maxFollowers = config.maxFollowers ?? 10000,
   maxPerRun = config.discoveryMaxPerRun ?? 15,
   hashtags = null,
   onProgress = null,
@@ -77,7 +78,7 @@ export async function discoverCreators({
     hashtags = await getTrendingHashtags();
   }
 
-  console.log(`[Discover] Hashtags: ${hashtags.join(', ')} | Min followers: ${minFollowers}`);
+  console.log(`[Discover] Hashtags: ${hashtags.join(', ')} | Range: ${minFollowers}-${maxFollowers}`);
   if (onProgress) onProgress(`🔍 Scanning *${hashtags.length} hashtags*: ${hashtags.join(', ')}`);
 
   const browser = await puppeteer.launch({
@@ -200,6 +201,11 @@ export async function discoverCreators({
 
           if (profileData.followers < minFollowers) {
             console.log(`[Discover] ❌ @${username} — ${profileData.followers.toLocaleString()} followers (below ${minFollowers.toLocaleString()})`);
+            continue;
+          }
+
+          if (profileData.followers > maxFollowers) {
+            console.log(`[Discover] ❌ @${username} — ${profileData.followers.toLocaleString()} followers (above ${maxFollowers.toLocaleString()})`);
             continue;
           }
 
