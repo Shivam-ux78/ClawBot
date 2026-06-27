@@ -146,30 +146,11 @@ export async function logIncomingMessage(creatorId, message) {
 ───────────────────────────────────────────────── */
 function buildOutreachMessage(creator, { websiteUrl, imageUrl, postLinks } = {}) {
   const name = creator.username.replace(/_/g, ' ');
-  const lines = [
-    `Hi ${name}! 👋`,
-    '',
-    `We've been following your content and absolutely love what you create.`,
-    '',
-  ];
+  return `Hi ${name}! 👋
 
-  if (websiteUrl) {
-    lines.push(`We run a platform you might enjoy: ${websiteUrl}`);
-    lines.push('');
-  }
+We are offering creators a free personalized MakeAble 3D couple gift, created from their photos, memories, or gift idea. The product is ideal for anniversaries, Valentine’s Day, birthdays, weddings, proposals, and relationship milestones. Creators can view the brand here: https://makeable.nyc/
 
-  if (postLinks?.length) {
-    lines.push('Here are some examples of our work:');
-    postLinks.forEach((link, i) => lines.push(`  ${i + 1}. ${link}`));
-    lines.push('');
-  }
+Creators will receive the custom gift at no cost and can create content in their own style. We are especially interested in emotional gift reveals, couple reactions, unboxings, and short reviews showing why the gift feels meaningful and personal.
 
-  if (imageUrl) {
-    lines.push(`We also create custom couple products (see attached 📸)`);
-    lines.push('');
-  }
-
-  lines.push(`Would you be open to a collaboration? We'd love to chat! 🎉`);
-
-  return lines.join('\n');
+We can also offer creators a strong affiliate commission of 10–25% or more on sales they generate through their unique link or code, depending on the creator and performance. The goal is to create authentic couple/gifting content that feels thoughtful, romantic, and highly shareable.`;
 }
