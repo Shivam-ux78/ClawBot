@@ -181,6 +181,31 @@ export function registerHandlers(bot) {
         return;
       }
 
+      if (text.startsWith('/range ')) {
+        const parts = text.replace('/range', '').trim().split('-');
+        if (parts.length === 2) {
+          const min = parseInt(parts[0].trim(), 10);
+          const max = parseInt(parts[1].trim(), 10);
+          
+          if (!isNaN(min) && !isNaN(max) && min < max) {
+            config.minFollowers = min;
+            config.maxFollowers = max;
+            
+            try {
+              await run(`
+                INSERT INTO settings (key, value) VALUES ('FOLLOWER_RANGE', $1)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+              `, [JSON.stringify({ min, max })]);
+              return bot.sendMessage(chatId, `✅ *Follower range updated!*\nNew range: ${min.toLocaleString()} - ${max.toLocaleString()}`, { parse_mode: 'Markdown' });
+            } catch (dbErr) {
+              console.error('Error saving FOLLOWER_RANGE to DB:', dbErr);
+              return bot.sendMessage(chatId, `⚠️ Range updated in memory, but failed to save to DB: ${dbErr.message}`);
+            }
+          }
+        }
+        return bot.sendMessage(chatId, '⚠️ Usage: `/range 3000 - 10000`', { parse_mode: 'Markdown' });
+      }
+
       if (text === '/startscan') {
         resumeDiscoveryCron();
         bot.sendMessage(chatId, '▶️ *Discovery scan schedule resumed.*', { parse_mode: 'Markdown' });
@@ -400,6 +425,7 @@ async function handleHelp(bot, chatId) {
     `/discover — Manually trigger an Instagram scan now`,
     `/stop <hours> — Pause auto-discovery (e.g. /stop 12)`,
     `/startscan — Resume auto-discovery`,
+    `/range <min> - <max> — Set the follower range limit`,
     `/Auto — Enable auto-approval and auto-DM (skip confirmation)`,
     `/AutoStop — Disable auto-approval (require confirmation)`,
     `/collab @username — Manually add any creator for outreach`,

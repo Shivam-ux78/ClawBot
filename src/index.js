@@ -26,6 +26,14 @@ try {
     config.telegramChatIds = JSON.parse(dbChatIds.value);
     console.log(`[Config] Loaded TELEGRAM_CHAT_IDS from database:`, config.telegramChatIds);
   }
+
+  const dbFollowerRange = await get("SELECT value FROM settings WHERE key = 'FOLLOWER_RANGE'");
+  if (dbFollowerRange && dbFollowerRange.value) {
+    const range = JSON.parse(dbFollowerRange.value);
+    if (range.min) config.minFollowers = range.min;
+    if (range.max) config.maxFollowers = range.max;
+    console.log(`[Config] Loaded FOLLOWER_RANGE from database: ${config.minFollowers} - ${config.maxFollowers}`);
+  }
 } catch (err) {
   console.error('[Config] Error loading settings from DB:', err.message);
 }
