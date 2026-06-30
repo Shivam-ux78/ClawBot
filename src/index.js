@@ -34,6 +34,18 @@ try {
     if (range.max) config.maxFollowers = range.max;
     console.log(`[Config] Loaded FOLLOWER_RANGE from database: ${config.minFollowers} - ${config.maxFollowers}`);
   }
+
+  const dbLocation = await get("SELECT value FROM settings WHERE key = 'DISCOVERY_LOCATION'");
+  if (dbLocation && dbLocation.value) {
+    config.discoveryLocation = dbLocation.value;
+    console.log(`[Config] Loaded DISCOVERY_LOCATION from database: ${config.discoveryLocation}`);
+  }
+
+  const dbCategory = await get("SELECT value FROM settings WHERE key = 'DISCOVERY_CATEGORY'");
+  if (dbCategory && dbCategory.value) {
+    config.discoveryCategory = dbCategory.value;
+    console.log(`[Config] Loaded DISCOVERY_CATEGORY from database: ${config.discoveryCategory}`);
+  }
 } catch (err) {
   console.error('[Config] Error loading settings from DB:', err.message);
 }

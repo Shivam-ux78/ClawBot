@@ -13,6 +13,8 @@ const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
  */
 export async function getTrendingHashtags() {
   try {
+    const loc = config.discoveryLocation || 'US';
+    const cat = config.discoveryCategory || 'couple';
     const openai = new OpenAI({ apiKey: config.openaiApiKey });
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -21,7 +23,7 @@ export async function getTrendingHashtags() {
         {
           role: 'user',
           content:
-            'Give me 10 currently trending Instagram hashtags used by US-based couple content creators ' +
+            `Give me 10 currently trending Instagram hashtags used by ${loc}-based ${cat} content creators ` +
             'with followings between 3k and 10k. Pick hashtags with at least 100k posts. ' +
             'Return ONLY a JSON array of strings WITHOUT the # symbol. ' +
             'Example: ["couplegoals", "relationshipgoals"]',
@@ -129,25 +131,61 @@ export async function discoverCreators({
         if (discovered.length >= maxPerRun) break;
 
         try {
-          // ── Step 1: Get author username from og:url meta tag ──────────────
+// New helper function to check location using AI
+async function verifyLocationWithAI(bio, postLocation, targetLocation) {
+  if (!targetLocation || targetLocation.toLowerCase() === 'us' || targetLocation.toLowerCase() === 'all') {
+    return true; // Skip AI check if target is generic
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: config.openaiApiKey });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a location verification assistant. You will be given a target city/location, an Instagram user bio, and a post location tag. Determine if the user is likely based in or frequently posts from the target location. Reply ONLY with YES or NO.' },
+        {
+          role: 'user',
+          content: `Target Location: ${targetLocation}\nPost Location Tag: ${postLocation || 'None'}\nBio: ${bio || 'None'}`
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 10,
+    });
+    const reply = response.choices[0].message.content.trim().toUpperCase();
+    return reply.includes('YES');
+  } catch (err) {
+    console.warn('[Discover] AI location check failed, defaulting to true:', err.message);
+    return true;
+  }
+}
+
+// ... existing code ...
+          // ── Step 1: Get author username and post location ──────────────
           await page.goto(postUrl, { waitUntil: 'networkidle2', timeout: 20000 });
           await new Promise(r => setTimeout(r, 2000));
 
-          const username = await page.evaluate(() => {
-            // og:url format: https://www.instagram.com/USERNAME/p/CODE/
+          const postData = await page.evaluate(() => {
+            let username = null;
             const ogUrl = document.querySelector('meta[property="og:url"]')?.content || '';
             const match = ogUrl.match(/instagram\.com\/([^\/]+)\/p\//);
-            if (match && match[1] !== 'p') return match[1];
+            if (match && match[1] !== 'p') username = match[1];
 
-            // Fallback: look for first profile link in post page header
-            const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags']);
-            for (const a of document.querySelectorAll('header a[href], article a[href]')) {
-              const href = (a.getAttribute('href') || '').replace(/\//g, '');
-              if (href && !SKIP.has(href) && /^[a-zA-Z0-9._]{3,30}$/.test(href)) return href;
+            if (!username) {
+              const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags']);
+              for (const a of document.querySelectorAll('header a[href], article a[href]')) {
+                const href = (a.getAttribute('href') || '').replace(/\//g, '');
+                if (href && !SKIP.has(href) && /^[a-zA-Z0-9._]{3,30}$/.test(href)) {
+                  username = href;
+                  break;
+                }
+              }
             }
-            return null;
+
+            const postLocation = document.querySelector('a[href*="/explore/locations/"]')?.innerText || null;
+            return { username, postLocation };
           });
 
+          const { username, postLocation } = postData;
           if (!username || seenUsernames.has(username)) continue;
           seenUsernames.add(username);
 
@@ -209,7 +247,15 @@ export async function discoverCreators({
             continue;
           }
 
-          // ✅ Passed the follower filter — let user decide in Telegram
+          // ── Step 3: Verify Location with AI ────────────────
+          const targetLocation = config.discoveryLocation;
+          const locationMatch = await verifyLocationWithAI(profileData.bio, postLocation, targetLocation);
+          if (!locationMatch) {
+            console.log(`[Discover] ❌ @${username} — location mismatch (Expected: ${targetLocation})`);
+            continue;
+          }
+
+          // ✅ Passed the follower and location filters
           const creatorObj = {
             username,
             followers: profileData.followers,

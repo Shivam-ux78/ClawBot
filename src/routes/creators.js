@@ -8,7 +8,7 @@ const router = Router();
  * POST /api/creators/add
  */
 router.post('/add', async (req, res) => {
-  const { username, followers, niche } = req.body;
+  const { username, followers, niche, location } = req.body;
 
   if (!username) {
     return res.status(400).json({ success: false, error: 'username is required' });
@@ -25,6 +25,7 @@ router.post('/add', async (req, res) => {
       username: cleanUsername,
       followers: followers ? Number(followers) : null,
       niche: niche?.trim() || null,
+      location: location?.trim() || null,
     });
 
     res.json({ success: true, creator });
@@ -36,11 +37,27 @@ router.post('/add', async (req, res) => {
 
 /**
  * GET /api/creators
- * List all creators with their current state.
+ * List all creators with their current state. Optionally filter by location and niche.
  */
 router.get('/', async (req, res) => {
   try {
-    const creators = await all('SELECT * FROM creators ORDER BY created_at DESC');
+    const { location, niche } = req.query;
+    let query = 'SELECT * FROM creators WHERE 1=1';
+    const params = [];
+
+    if (location) {
+      params.push(location);
+      query += ` AND LOWER(location) = LOWER($${params.length})`;
+    }
+    
+    if (niche) {
+      params.push(niche);
+      query += ` AND LOWER(niche) = LOWER($${params.length})`;
+    }
+
+    query += ' ORDER BY created_at DESC';
+    
+    const creators = await all(query, params);
     res.json({ success: true, creators });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -48,6 +48,8 @@ export const config = {
     : ['usacouples', 'americancouples', 'couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'partnercontent'],
   discoveryMaxPerRun: Number(process.env.DISCOVERY_MAX_PER_RUN) || 15,
   discoveryIntervalHours: Number(process.env.DISCOVERY_INTERVAL_HOURS) || 6,
+  discoveryLocation: process.env.DISCOVERY_LOCATION || 'US',
+  discoveryCategory: process.env.DISCOVERY_CATEGORY || 'couple',
 };
 
 /**

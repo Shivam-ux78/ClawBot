@@ -43,7 +43,8 @@ export async function runDiscovery(isRescan = false) {
           const addedCreator = await addCreator({ 
             username: creator.username, 
             followers: creator.followers, 
-            niche: 'couple', 
+            niche: config.discoveryCategory || 'couple', 
+            location: config.discoveryLocation || 'US',
             bio: creator.bio,
             skipApprovalCard: isAutoDMActive
           });

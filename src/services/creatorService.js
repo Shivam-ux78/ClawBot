@@ -12,7 +12,7 @@ import { notifyWhatsApp } from './whatsappService.js';
 /**
  * Add a new creator and trigger Stage 1 Telegram approval (if not skipped).
  */
-export async function addCreator({ username, followers, niche, bio, skipApprovalCard = false }) {
+export async function addCreator({ username, followers, niche, location, bio, skipApprovalCard = false }) {
   const existing = await get('SELECT * FROM creators WHERE username = $1', [username]);
   if (existing) {
     throw new Error(`Creator @${username} already exists (state: ${existing.state})`);
@@ -30,8 +30,8 @@ export async function addCreator({ username, followers, niche, bio, skipApproval
   }
 
   const { lastInsertRowid: creatorId } = await run(
-    'INSERT INTO creators (username, followers, niche, bio) VALUES ($1, $2, $3, $4) RETURNING id',
-    [username, realFollowers, niche ?? null, realBio]
+    'INSERT INTO creators (username, followers, niche, location, bio) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [username, realFollowers, niche ?? null, location ?? null, realBio]
   );
 
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);

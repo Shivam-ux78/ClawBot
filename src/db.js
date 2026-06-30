@@ -65,6 +65,7 @@ async function runSchema(pool) {
       username        VARCHAR(255) NOT NULL UNIQUE,
       followers       INTEGER,
       niche           VARCHAR(255),
+      location        VARCHAR(255),
       bio             TEXT,
       state           VARCHAR(50) NOT NULL DEFAULT 'pending',
       bot_state       VARCHAR(50) NOT NULL DEFAULT 'active',
@@ -75,9 +76,10 @@ async function runSchema(pool) {
     );
   `);
 
-  // Add bio column to existing tables (safe if already exists)
+  // Add bio and location columns to existing tables (safe if already exists)
   await pool.query(`
     ALTER TABLE creators ADD COLUMN IF NOT EXISTS bio TEXT;
+    ALTER TABLE creators ADD COLUMN IF NOT EXISTS location VARCHAR(255);
   `);
 
   await pool.query(`

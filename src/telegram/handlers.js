@@ -157,8 +157,9 @@ export function registerHandlers(bot) {
         return;
       }
 
-      if (text === '/list') {
-        await handleList(bot, chatId);
+      if (text.startsWith('/list')) {
+        const filterStr = text.replace('/list', '').trim();
+        await handleList(bot, chatId, filterStr);
         return;
       }
 
@@ -204,6 +205,33 @@ export function registerHandlers(bot) {
           }
         }
         return bot.sendMessage(chatId, '⚠️ Usage: `/range 3000 - 10000`', { parse_mode: 'Markdown' });
+      }
+
+      if (text.startsWith('/settarget')) {
+        const parts = text.replace('/settarget', '').trim().split(' ');
+        if (parts.length >= 2) {
+          const location = parts[0].trim();
+          const category = parts.slice(1).join(' ').trim();
+          
+          config.discoveryLocation = location;
+          config.discoveryCategory = category;
+          
+          try {
+            await run(`
+              INSERT INTO settings (key, value) VALUES ('DISCOVERY_LOCATION', $1)
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            `, [location]);
+            await run(`
+              INSERT INTO settings (key, value) VALUES ('DISCOVERY_CATEGORY', $1)
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            `, [category]);
+            return bot.sendMessage(chatId, `🎯 *Discovery Target Updated!*\nLocation: \`${location}\`\nCategory: \`${category}\``, { parse_mode: 'Markdown' });
+          } catch (dbErr) {
+            console.error('Error saving target to DB:', dbErr);
+            return bot.sendMessage(chatId, `⚠️ Target updated in memory, but failed to save to DB: ${dbErr.message}`);
+          }
+        }
+        return bot.sendMessage(chatId, '⚠️ Usage: `/settarget <location> <category>`\nExample: `/settarget US couple`', { parse_mode: 'Markdown' });
       }
 
       if (text === '/startscan') {
@@ -375,20 +403,36 @@ async function handleStatus(bot, chatId, username) {
   bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
 }
 
-async function handleList(bot, chatId) {
-  const creators = await all(`
-    SELECT * FROM creators WHERE state NOT IN ('rejected', 'deal_closed', 'deal_rejected')
-    ORDER BY created_at DESC LIMIT 20
-  `);
+async function handleList(bot, chatId, filterStr) {
+  let query = "SELECT * FROM creators WHERE state NOT IN ('rejected', 'deal_closed', 'deal_rejected')";
+  let params = [];
+
+  if (filterStr) {
+    const parts = filterStr.split(' ');
+    if (parts.length >= 1) {
+      query += " AND LOWER(location) = LOWER($" + (params.length + 1) + ")";
+      params.push(parts[0]);
+    }
+    if (parts.length >= 2) {
+      query += " AND LOWER(niche) = LOWER($" + (params.length + 1) + ")";
+      params.push(parts.slice(1).join(' '));
+    }
+  }
+
+  query += " ORDER BY created_at DESC LIMIT 20";
+
+  const creators = await all(query, params);
 
   if (!creators.length) {
-    return bot.sendMessage(chatId, 'ℹ️ No active creators in the pipeline.');
+    return bot.sendMessage(chatId, 'ℹ️ No active creators in the pipeline matching your criteria.');
   }
 
   const stateEmoji = { active: '🟢', paused: '🟡', manual: '🔴' };
   const lines = creators.map((c) => {
     const e = stateEmoji[c.bot_state] || '⚪';
-    return `${e} @${escapeMd(c.username)} | ${c.state} | ${c.followers ? Number(c.followers).toLocaleString() : 'N/A'} followers`;
+    const loc = c.location ? `[${c.location}] ` : '';
+    const cat = c.niche ? `(${c.niche})` : '';
+    return `${e} @${escapeMd(c.username)} | ${c.state} | ${loc}${cat} ${c.followers ? Number(c.followers).toLocaleString() : 'N/A'} followers`;
   });
 
   bot.sendMessage(chatId, `📋 *Active Creators (${creators.length}):*\n\n${lines.join('\n')}`, {
@@ -440,7 +484,8 @@ async function handleHelp(bot, chatId) {
     ``,
     `*Info:*`,
     `/status @username — Creator status`,
-    `/list — Active pipeline`,
+    `/list [location] [category] — Active pipeline (optionally filtered)`,
+    `/settarget <location> <category> — Set discovery target location & category`,
     `/deals — Deal history`,
     `/help — This message`,
   ].join('\n');
