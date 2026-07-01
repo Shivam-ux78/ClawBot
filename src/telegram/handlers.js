@@ -307,6 +307,18 @@ export function registerHandlers(bot) {
         return bot.sendMessage(chatId, '🔴 *Manual Mode Enabled*\nCreators found will require your approval in Telegram before any cold DM is sent.', { parse_mode: 'Markdown' });
       }
 
+      if (text === '/StopCategoryFilter') {
+        const { setCategoryFilterActive } = await import('../jobs/discoveryJob.js');
+        setCategoryFilterActive(false);
+        return bot.sendMessage(chatId, '🟢 *Category Filter OFF*\nDiscovery will now surface *any US creator* in your follower range, regardless of niche (couple/love no longer required).', { parse_mode: 'Markdown' });
+      }
+
+      if (text === '/StartCategoryFilter') {
+        const { setCategoryFilterActive } = await import('../jobs/discoveryJob.js');
+        setCategoryFilterActive(true);
+        return bot.sendMessage(chatId, '🎯 *Category Filter ON*\nDiscovery will only keep Love/Couple/Relationship/Marriage/Family creators (confidence ≥ threshold).', { parse_mode: 'Markdown' });
+      }
+
       if (text === '/discover') {
         bot.sendMessage(chatId, '🔍 Starting manual discovery scan... This may take a few minutes.');
         runDiscovery().catch((err) => {
@@ -528,6 +540,8 @@ async function handleHelp(bot, chatId) {
     `/range <min> - <max> — Set the follower range in one line`,
     `/Auto — Auto-approve & cold-DM creators passing the filter`,
     `/Manual — Require your approval before any cold DM (default)`,
+    `/StopCategoryFilter — Find any US creator (ignore niche)`,
+    `/StartCategoryFilter — Only keep Love/Couple/Relationship creators`,
     `/collab @username — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,

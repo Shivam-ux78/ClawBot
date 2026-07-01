@@ -8,9 +8,14 @@ let activeCronTask = null;
 let resumeTimer = null;
 export let isDiscoveryActive = true;
 export let isAutoDMActive = false;
+export let isCategoryFilterActive = true;
 
 export function setAutoDMActive(state) {
   isAutoDMActive = state;
+}
+
+export function setCategoryFilterActive(state) {
+  isCategoryFilterActive = state;
 }
 
 /**
@@ -29,7 +34,8 @@ export async function runDiscovery(isRescan = false) {
   const minF = (config.minFollowers ?? 3000).toLocaleString();
   const maxF = (config.maxFollowers ?? 10000).toLocaleString();
   const mode = isAutoDMActive ? 'Auto' : 'Manual (approval required)';
-  notify(`${label}... Looking for *${config.discoveryCategory || 'couple'}* creators in *${config.discoveryLocation || 'US'}* with ${minF}-${maxF} followers.\nMode: *${mode}* | Min confidence: *${config.discoveryMinConfidence ?? 80}%*`);
+  const catFilter = isCategoryFilterActive ? 'ON' : 'OFF (any US creator)';
+  notify(`${label}... Looking for *${config.discoveryCategory || 'couple'}* creators in *${config.discoveryLocation || 'US'}* with ${minF}-${maxF} followers.\nMode: *${mode}* | Category filter: *${catFilter}* | Min confidence: *${config.discoveryMinConfidence ?? 80}%*`);
 
   let added = 0;
   let skipped = 0;
@@ -39,6 +45,7 @@ export async function runDiscovery(isRescan = false) {
       minFollowers: config.minFollowers ?? 3000,
       maxFollowers: config.maxFollowers ?? 10000,
       minConfidence: config.discoveryMinConfidence ?? 80,
+      categoryFilterEnabled: isCategoryFilterActive,
       maxPerRun: 5, // Limit to 5 per scan as requested
       onProgress: (msg) => notify(msg),
       onCreatorFound: async (creator) => {

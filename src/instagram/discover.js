@@ -253,7 +253,7 @@ async function scanConnections(page, username, sample) {
  * object if it qualifies, else null. Shared by post authors (with a matched
  * category hashtag) and their follower/following connections (no post context).
  */
-async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, locationTag, matchedCats = null, source }) {
+async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source }) {
   await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'networkidle2', timeout: 20000 });
   await sleep(2000);
 
@@ -327,29 +327,38 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
     postThemesText: `${profileData.postThemesText} | ${(matchedCats || []).join(' ')}`,
   });
   const keepCategory = KEEP_CATEGORIES.includes(category);
-  if (!keepCategory) {
-    console.log(`[Discover] ❌ @${username} — category "${category}" not in keep list`);
-    return null;
+
+  // When the category filter is OFF, accept any US in-range creator regardless
+  // of niche — skip the keep-category and confidence gates entirely.
+  if (categoryFilterEnabled) {
+    if (!keepCategory) {
+      console.log(`[Discover] ❌ @${username} — category "${category}" not in keep list`);
+      return null;
+    }
+    const confidence = computeConfidence({ locationUS, bioScore, postsMatch, keepCategory });
+    if (confidence < minConfidence) {
+      console.log(`[Discover] ❌ @${username} — confidence ${confidence}% (below ${minConfidence}%) [cat=${category}, bio=${bioScore}, src=${source}]`);
+      return null;
+    }
+    return buildCreator();
   }
 
-  // Confidence gate
-  const confidence = computeConfidence({ locationUS, bioScore, postsMatch, keepCategory });
-  if (confidence < minConfidence) {
-    console.log(`[Discover] ❌ @${username} — confidence ${confidence}% (below ${minConfidence}%) [cat=${category}, bio=${bioScore}, src=${source}]`);
-    return null;
-  }
+  return buildCreator();
 
-  return {
-    username,
-    followers: profileData.followers,
-    bio: profileData.bio,
-    category,
-    confidence,
-    country: aboutCountry || 'United States',
-    locationTag,
-    matchedHashtags: matchedCats || [],
-    source,
-  };
+  function buildCreator() {
+    const confidence = computeConfidence({ locationUS, bioScore, postsMatch, keepCategory: keepCategory || !categoryFilterEnabled });
+    return {
+      username,
+      followers: profileData.followers,
+      bio: profileData.bio,
+      category,
+      confidence,
+      country: aboutCountry || 'United States',
+      locationTag,
+      matchedHashtags: matchedCats || [],
+      source,
+    };
+  }
 }
 
 /**
@@ -368,6 +377,7 @@ export async function discoverCreators({
   maxPerRun = config.discoveryMaxPerRun ?? 15,
   locationHashtags = config.discoveryLocationHashtags ?? ['usa'],
   categoryHashtags = config.discoveryCategoryHashtags ?? ['couple'],
+  categoryFilterEnabled = true,
   scanConnectionsEnabled = config.discoveryScanConnections ?? true,
   connectionsSample = config.discoveryConnectionsSample ?? 10,
   onProgress = null,
@@ -392,7 +402,7 @@ export async function discoverCreators({
   const categorySet = new Set(categoryHashtags.map(normalizeTag).filter(Boolean));
 
   console.log(`[Discover] Location tags: ${locationTags.join(', ')}`);
-  console.log(`[Discover] Category tags: ${[...categorySet].join(', ')} | Range: ${minFollowers}-${maxFollowers} | MinConfidence: ${minConfidence} | Connections: ${scanConnectionsEnabled}`);
+  console.log(`[Discover] Category tags: ${[...categorySet].join(', ')} | Range: ${minFollowers}-${maxFollowers} | MinConfidence: ${minConfidence} | CategoryFilter: ${categoryFilterEnabled} | Connections: ${scanConnectionsEnabled}`);
   if (onProgress) onProgress(`🔍 Location-first scan: *${locationTags.length} location tags* → filter by *${categorySet.size} category tags*`);
 
   const browser = await puppeteer.launch({
@@ -490,16 +500,17 @@ export async function discoverCreators({
           const { username, postHashtags } = postData;
 
           // ── Step 3: Content dimension — must match a category hashtag ──
+          // Skipped entirely when the category filter is turned off (/StopCategoryFilter).
           const matchedCats = (postHashtags || []).filter(h => categorySet.has(h));
-          if (matchedCats.length === 0) continue;
+          if (categoryFilterEnabled && matchedCats.length === 0) continue;
 
           if (!username || seenUsernames.has(username)) continue;
           seenUsernames.add(username);
 
-          console.log(`[Discover] ➡️ @${username} — #${locationTag} + [${matchedCats.join(', ')}]`);
+          console.log(`[Discover] ➡️ @${username} — #${locationTag}${matchedCats.length ? ` + [${matchedCats.join(', ')}]` : ' (category filter off)'}`);
 
           const creator = await evaluateProfile(page, username, {
-            minFollowers, maxFollowers, minConfidence, locationTag, matchedCats, source: 'post',
+            minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats, source: 'post',
           });
           if (!creator) continue;
 
@@ -518,7 +529,7 @@ export async function discoverCreators({
 
               try {
                 const c2 = await evaluateProfile(page, conn, {
-                  minFollowers, maxFollowers, minConfidence, locationTag, matchedCats: null, source: 'connection',
+                  minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'connection',
                 });
                 if (c2) await emit(c2);
               } catch (err) {
