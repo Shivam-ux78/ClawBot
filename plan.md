@@ -1,304 +1,115 @@
-# ClawBot Influencer Outreach & Deal Automation System (Enhanced)
+Yes. I would update the discovery strategy to use **two independent dimensions** instead of relying primarily on "About this account."
 
-## 1. Objective
+## Updated Discovery Strategy
 
-Build a controlled AI outreach system that:
+### Step 1: Location Discovery
 
-* Finds US-based couple creators
-* Sends structured approval before outreach
-* Sends enriched outreach (links, content, proof)
-* Handles conversations like a human
-* Negotiates within budget limits
-* Allows **manual intervention at any stage**
-* Allows **bot ON/OFF per creator**
-* Closes deals with final approval
+Use **location-specific hashtags** to narrow candidates.
 
----
+Examples:
 
-## 2. Enhanced Flow (Updated)
+**Country**
 
 ```text
-Find Creator →
-Send Basic Info (Telegram) →
-User Approves →
-Send Full Outreach (DM) →
-Conversation Starts →
-AI Negotiation →
-Budget Check →
-Telegram Confirmation →
-Deal Close
+#USA
+#UnitedStates
+#America
+#MadeInUSA
+```
+
+**State**
+
+```text
+#California
+#Texas
+#Florida
+#NewYork
+#Arizona
+```
+
+**City**
+
+```text
+#LosAngeles
+#NewYorkCity
+#Chicago
+#Houston
+#Miami
+#Dallas
+#Seattle
+#SanFrancisco
 ```
 
 ---
 
-## 3. Stage 1 — Creator Discovery Approval
+### Step 2: Content Discovery
 
-When a creator is found, system sends **basic info only**:
+Use **content-specific hashtags**.
 
-### Telegram Message:
-
-* Username
-* Followers
-* Niche (optional)
-
-### User Options:
-
-* 1 → Approve
-* 2 → Reject
-
----
-
-## 4. Stage 2 — Enriched Outreach Message (After Approval)
-
-If approved, system sends **full outreach DM** including:
-
-### Content Structure:
-
-* Personalized intro
-* Website URL (your product/service)
-* Image reference (product/sample)
-* Instagram post links (proof/social validation)
-
-### Example Structure:
+For Love/Couple creators:
 
 ```text
-Hi John & Emily,
-
-We loved your recent couple content.
-
-We run a platform: [Website URL]
-
-Here are some examples:
-- Post 1 URL
-- Post 2 URL
-
-We also create custom couple products (see image)
-
-Would you be open to collaboration?
+#couple
+#couplegoals
+#relationship
+#relationshipgoals
+#love
+#dating
+#marriedlife
+#husbandandwife
+#girlfriend
+#boyfriend
+#romance
+#family
 ```
 
 ---
 
-## 5. Stage 3 — Auto Skip on Reject
+### Step 3: Dual Filter
 
-If user selects:
+Instead of searching only one hashtag, use **one location hashtag + one content hashtag**.
 
-```text
-2 → Reject
-```
-
-System:
-
-* Discards creator
-* Automatically fetches next creator
-* Sends new approval request
-
----
-
-## 6. Stage 4 — Conversation Control System
-
-Each creator has a **control state**:
-
-### States:
-
-* active → AI handles conversation
-* paused → bot stops responding
-* manual → user takes over
-
----
-
-## 7. Manual Override (Critical Feature)
-
-User can control bot anytime via Telegram:
-
-### Commands:
-
-* `/pause @username`
-  → Bot stops replying
-
-* `/resume @username`
-  → Bot resumes AI replies
-
-* `/manual @username`
-  → Bot stops permanently (user handles manually)
-
----
-
-## 8. Mid-Conversation Intervention
-
-During any conversation:
-
-* User can interrupt
-* Change message
-* Take control
-* Resume automation later
-
----
-
-## 9. AI Conversation + Negotiation
-
-Bot handles:
-
-* Replies
-* Interest detection
-* Price negotiation
-
----
-
-## 10. Budget Control System
-
-Defined values:
-
-* Min Budget
-* Target Budget
-* Max Budget
-
----
-
-### Logic:
-
-#### If price > max:
-
-→ Counter offer (lower)
-
-#### If price within range:
-
-→ Send to Telegram for approval
-
-#### If price < min:
-
-→ Accept (still confirm)
-
----
-
-## 11. Final Deal Approval
-
-Telegram message:
+Examples:
 
 ```text
-DEAL PROPOSAL
+#California + #couplegoals
 
-Creator: @username
-Price: $120
+#Texas + #relationship
 
-1 = Accept
-2 = Reject
+#Miami + #love
+
+#NewYorkCity + #family
+
+#LosAngeles + #dating
 ```
 
----
-
-## 12. Deal Closure
-
-If approved:
-
-* Bot sends final confirmation message
-* Marks deal as closed
+Only keep profiles that appear in both searches or strongly match both dimensions.
 
 ---
 
-## 13. Multi-Level Control System
+### Step 4: AI Verification
 
-| Stage        | Control          |
-| ------------ | ---------------- |
-| Discovery    | Approve / Reject |
-| Outreach     | Edit message     |
-| Conversation | Pause / Resume   |
-| Negotiation  | Auto (AI)        |
-| Deal         | Final approval   |
+For every candidate:
 
----
-
-## 14. Safety System
-
-* 20–40 DMs/day limit
-* Random delays (60–90 sec)
-* Human-like responses
-* Manual override available anytime
+* Check bio
+* Check recent captions
+* Check recent hashtags
+* Check profile language
+* Classify niche
+* Assign confidence score
 
 ---
 
-## 15. Key Advantage of This Design
-
-This is NOT a blind automation system.
-
-It is:
+### Step 5: Final Conditions
 
 ```text
-AI + Human Control Hybrid System
+✓ Public profile
+✓ US location signal
+✓ Love/Couple niche
+✓ Follower range (Telegram /range)
+✓ Confidence ≥ 80%
 ```
 
----
+## Why this is better
 
-## 16. Real Use Flow Example
-
-1. Bot:
-   Sends → "@john_emily | 82K followers"
-
-2. User:
-   → 1 (Approve)
-
-3. Bot:
-   Sends full DM with:
-
-   * Website
-   * Image
-   * Post links
-
-4. Creator:
-   "Interested, price $250"
-
-5. Bot:
-   Negotiates → "$100 budget"
-
-6. Creator:
-   "$120 ok"
-
-7. Telegram:
-   DEAL PROPOSAL
-
-8. User:
-   → 1
-
-9. Bot:
-   "Perfect! Let’s proceed 🎉"
-
----
-
-## 17. Control Commands Summary
-
-```text
-1 → Approve
-2 → Reject
-3 → Edit
-
-/pause @user
-/resume @user
-/manual @user
-```
-
----
-
-## 18. Final System Identity
-
-This system is:
-
-```text
-AI Influencer Outreach Agent
-+ Human Approval Layer
-+ Budget-Control Negotiation Engine
-+ Real-time Control System
-```
-
----
-
-## 19. Conclusion
-
-You now have a system that:
-
-* Filters creators before outreach
-* Sends rich, high-conversion messages
-* Negotiates like a human
-* Protects budget automatically
-* Allows full manual control anytime
-
-This design is **production-ready scalable architecture**.
+Instead of depending on **"Account based in = United States"** (which isn't always available), you first discover creators through **location hashtags** and then verify them using **content hashtags** and AI analysis. This gives a larger pool of candidates while still allowing you to rank them by confidence.

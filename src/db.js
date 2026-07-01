@@ -76,10 +76,12 @@ async function runSchema(pool) {
     );
   `);
 
-  // Add bio and location columns to existing tables (safe if already exists)
+  // Add bio, location, and discovery scoring columns (safe if already exists)
   await pool.query(`
     ALTER TABLE creators ADD COLUMN IF NOT EXISTS bio TEXT;
     ALTER TABLE creators ADD COLUMN IF NOT EXISTS location VARCHAR(255);
+    ALTER TABLE creators ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+    ALTER TABLE creators ADD COLUMN IF NOT EXISTS confidence INTEGER;
   `);
 
   await pool.query(`

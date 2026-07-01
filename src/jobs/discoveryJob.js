@@ -26,7 +26,10 @@ export async function runDiscovery(isRescan = false) {
     return;
   }
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
-  notify(`${label}... Looking for couple creators with 3k-10k followers.`);
+  const minF = (config.minFollowers ?? 3000).toLocaleString();
+  const maxF = (config.maxFollowers ?? 10000).toLocaleString();
+  const mode = isAutoDMActive ? 'Auto' : 'Manual (approval required)';
+  notify(`${label}... Looking for *${config.discoveryCategory || 'couple'}* creators in *${config.discoveryLocation || 'US'}* with ${minF}-${maxF} followers.\nMode: *${mode}* | Min confidence: *${config.discoveryMinConfidence ?? 80}%*`);
 
   let added = 0;
   let skipped = 0;
@@ -35,17 +38,20 @@ export async function runDiscovery(isRescan = false) {
     const creators = await discoverCreators({
       minFollowers: config.minFollowers ?? 3000,
       maxFollowers: config.maxFollowers ?? 10000,
+      minConfidence: config.discoveryMinConfidence ?? 80,
       maxPerRun: 5, // Limit to 5 per scan as requested
       onProgress: (msg) => notify(msg),
       onCreatorFound: async (creator) => {
         try {
           // Process and send the notification IMMEDIATELY
-          const addedCreator = await addCreator({ 
-            username: creator.username, 
-            followers: creator.followers, 
-            niche: config.discoveryCategory || 'couple', 
-            location: config.discoveryLocation || 'US',
+          const addedCreator = await addCreator({
+            username: creator.username,
+            followers: creator.followers,
+            niche: creator.category || config.discoveryCategory || 'couple',
+            location: creator.country || config.discoveryLocation || 'US',
             bio: creator.bio,
+            category: creator.category,
+            confidence: creator.confidence,
             skipApprovalCard: isAutoDMActive
           });
           added++;

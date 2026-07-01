@@ -55,10 +55,12 @@ export function sendApprovalCard(creator) {
     ``,
     `👤 @${escapeMd(creator.username)}`,
     `👥 Followers: ${followersStr}`,
-    creator.niche ? `🏷 Niche: ${creator.niche}` : '',
+    creator.category ? `🏷 Category: ${escapeMd(creator.category)}` : (creator.niche ? `🏷 Niche: ${escapeMd(creator.niche)}` : ''),
+    creator.confidence != null ? `📊 Confidence: ${creator.confidence}%` : '',
+    creator.location ? `📍 ${escapeMd(creator.location)}` : '',
     ``,
     `*Action Required:*`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   config.telegramChatIds.forEach(chatId => {
     bot.sendMessage(chatId, text, {

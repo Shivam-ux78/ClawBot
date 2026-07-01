@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 const pendingIdActions = new Map();
+const pendingRangeActions = new Map();
 
 /**
  * Register all Telegram message + callback handlers on the bot instance.
@@ -128,6 +129,51 @@ export function registerHandlers(bot) {
     // Only respond to our control chat
     if (!config.telegramChatIds.includes(String(chatId))) return;
 
+    // ── Interactive /range flow (min → max) ──────────────────────────
+    if (pendingRangeActions.has(chatId)) {
+      if (text.toLowerCase() === '/cancel') {
+        pendingRangeActions.delete(chatId);
+        return bot.sendMessage(chatId, '❌ Range setup cancelled.');
+      }
+      const state = pendingRangeActions.get(chatId);
+      const num = parseInt(text.replace(/[^\d]/g, ''), 10);
+      if (isNaN(num) || num <= 0) {
+        return bot.sendMessage(chatId, '⚠️ Please send a valid positive number, or /cancel.');
+      }
+
+      if (state.step === 'min') {
+        state.min = num;
+        state.step = 'max';
+        pendingRangeActions.set(chatId, state);
+        return bot.sendMessage(
+          chatId,
+          `✅ Minimum followers: *${num.toLocaleString()}*\n\nNow send the *maximum* follower count.`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+
+      if (state.step === 'max') {
+        if (num <= state.min) {
+          return bot.sendMessage(chatId, `⚠️ Maximum must be greater than the minimum (${state.min.toLocaleString()}). Send a larger number, or /cancel.`);
+        }
+        const min = state.min;
+        const max = num;
+        pendingRangeActions.delete(chatId);
+        config.minFollowers = min;
+        config.maxFollowers = max;
+        try {
+          await run(`
+            INSERT INTO settings (key, value) VALUES ('FOLLOWER_RANGE', $1)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+          `, [JSON.stringify({ min, max })]);
+          return bot.sendMessage(chatId, `✅ *Follower range updated!*\nNew range: ${min.toLocaleString()} - ${max.toLocaleString()}`, { parse_mode: 'Markdown' });
+        } catch (dbErr) {
+          console.error('Error saving FOLLOWER_RANGE to DB:', dbErr);
+          return bot.sendMessage(chatId, `⚠️ Range updated in memory, but failed to save to DB: ${dbErr.message}`);
+        }
+      }
+    }
+
     try {
       if (text.startsWith('/pause')) {
         const username = extractUsername(text);
@@ -180,6 +226,15 @@ export function registerHandlers(bot) {
           bot.sendMessage(chatId, '⏸ *Discovery scan paused indefinitely.*\nUse `/startscan` to resume.', { parse_mode: 'Markdown' });
         }
         return;
+      }
+
+      if (text === '/range') {
+        pendingRangeActions.set(chatId, { step: 'min' });
+        return bot.sendMessage(
+          chatId,
+          '📊 *Set follower range*\n\nSend the *minimum* follower count (numbers only).\nSend /cancel to abort.',
+          { parse_mode: 'Markdown' }
+        );
       }
 
       if (text.startsWith('/range ')) {
@@ -243,13 +298,13 @@ export function registerHandlers(bot) {
       if (text === '/Auto') {
         const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
         setAutoDMActive(true);
-        return bot.sendMessage(chatId, '🚀 *Auto DM Mode Enabled*\nCreators found during scanning will be automatically approved and DM\'d without needing confirmation.', { parse_mode: 'Markdown' });
+        return bot.sendMessage(chatId, '🚀 *Auto Mode Enabled*\nCreators passing the confidence filter will be automatically approved and cold-DM\'d without confirmation.', { parse_mode: 'Markdown' });
       }
 
-      if (text === '/AutoStop') {
+      if (text === '/Manual' || text === '/AutoStop') {
         const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
         setAutoDMActive(false);
-        return bot.sendMessage(chatId, '🛑 *Auto DM Mode Disabled*\nCreators found will now require manual approval again.', { parse_mode: 'Markdown' });
+        return bot.sendMessage(chatId, '🔴 *Manual Mode Enabled*\nCreators found will require your approval in Telegram before any cold DM is sent.', { parse_mode: 'Markdown' });
       }
 
       if (text === '/discover') {
@@ -469,9 +524,10 @@ async function handleHelp(bot, chatId) {
     `/discover — Manually trigger an Instagram scan now`,
     `/stop <hours> — Pause auto-discovery (e.g. /stop 12)`,
     `/startscan — Resume auto-discovery`,
-    `/range <min> - <max> — Set the follower range limit`,
-    `/Auto — Enable auto-approval and auto-DM (skip confirmation)`,
-    `/AutoStop — Disable auto-approval (require confirmation)`,
+    `/range — Set follower range interactively (asks min, then max)`,
+    `/range <min> - <max> — Set the follower range in one line`,
+    `/Auto — Auto-approve & cold-DM creators passing the filter`,
+    `/Manual — Require your approval before any cold DM (default)`,
     `/collab @username — Manually add any creator for outreach`,
     ``,
     `*Bot Control:*`,

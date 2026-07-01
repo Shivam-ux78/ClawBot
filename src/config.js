@@ -43,13 +43,40 @@ export const config = {
   // Discovery Engine
   minFollowers: Number(process.env.MIN_FOLLOWERS) || 3000,
   maxFollowers: Number(process.env.MAX_FOLLOWERS) || 10000,
+  // Content hashtags (the "what" dimension — Love/Couple content)
   discoveryHashtags: process.env.DISCOVERY_HASHTAGS
     ? process.env.DISCOVERY_HASHTAGS.split(',').map(h => h.trim())
     : ['usacouples', 'americancouples', 'couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'partnercontent'],
+  // Location hashtags (the "where" dimension — searched FIRST). Country → state → city.
+  discoveryLocationHashtags: process.env.DISCOVERY_LOCATION_HASHTAGS
+    ? process.env.DISCOVERY_LOCATION_HASHTAGS.split(',').map(h => h.trim())
+    : [
+        // Country
+        'usa', 'unitedstates', 'america', 'madeinusa',
+        // States
+        'california', 'texas', 'florida', 'newyork', 'arizona',
+        // Cities
+        'losangeles', 'newyorkcity', 'chicago', 'houston', 'miami',
+        'dallas', 'seattle', 'sanfrancisco',
+      ],
+  // Category hashtags (the "what" dimension — matched against each post's own hashtags)
+  discoveryCategoryHashtags: process.env.DISCOVERY_CATEGORY_HASHTAGS
+    ? process.env.DISCOVERY_CATEGORY_HASHTAGS.split(',').map(h => h.trim())
+    : [
+        'couple', 'couplegoals', 'relationship', 'relationshipgoals', 'love',
+        'dating', 'marriedlife', 'husbandandwife', 'girlfriend', 'boyfriend',
+        'romance', 'family', 'couplesofinstagram', 'lovebirds', 'engaged',
+        'wedding', 'anniversary',
+      ],
   discoveryMaxPerRun: Number(process.env.DISCOVERY_MAX_PER_RUN) || 15,
   discoveryIntervalHours: Number(process.env.DISCOVERY_INTERVAL_HOURS) || 6,
   discoveryLocation: process.env.DISCOVERY_LOCATION || 'US',
   discoveryCategory: process.env.DISCOVERY_CATEGORY || 'couple',
+  discoveryMinConfidence: Number(process.env.DISCOVERY_MIN_CONFIDENCE) || 80,
+  // After finding a local creator, scan their followers + following list for
+  // more creators from the same area (they cluster geographically).
+  discoveryScanConnections: process.env.DISCOVERY_SCAN_CONNECTIONS !== 'false',
+  discoveryConnectionsSample: Number(process.env.DISCOVERY_CONNECTIONS_SAMPLE) || 10,
 };
 
 /**
