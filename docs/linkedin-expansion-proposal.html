@@ -1,0 +1,434 @@
+<title>Cross-Platform Outreach — Approach &amp; Requirements</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink: #14161c;
+    --paper: #faf8f4;
+    --paper-2: #f1ede4;
+    --text: #1b1c20;
+    --text-dim: #5b5d66;
+    --line: #ded8c9;
+    --accent: #d9581f;
+    --accent-soft: #f3e2d3;
+    --accent-2: #1f7a6c;
+    --accent-2-soft: #dcece7;
+    --code-bg: #efeadd;
+    --warn-bg: #fbe9df;
+    --warn-line: #d9581f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #eceae4; --paper: #100f13; --paper-2: #17161c;
+      --text: #eae7e0; --text-dim: #9b98a3; --line: #33313c;
+      --accent: #ff8a4c; --accent-soft: #3a2418;
+      --accent-2: #4fc3ae; --accent-2-soft: #12302b;
+      --code-bg: #1b1a21; --warn-bg: #2c1c14; --warn-line: #ff8a4c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #eceae4; --paper: #100f13; --paper-2: #17161c;
+    --text: #eae7e0; --text-dim: #9b98a3; --line: #33313c;
+    --accent: #ff8a4c; --accent-soft: #3a2418;
+    --accent-2: #4fc3ae; --accent-2-soft: #12302b;
+    --code-bg: #1b1a21; --warn-bg: #2c1c14; --warn-line: #ff8a4c;
+  }
+  :root[data-theme="light"] {
+    --ink: #14161c; --paper: #faf8f4; --paper-2: #f1ede4;
+    --text: #1b1c20; --text-dim: #5b5d66; --line: #ded8c9;
+    --accent: #d9581f; --accent-soft: #f3e2d3;
+    --accent-2: #1f7a6c; --accent-2-soft: #dcece7;
+    --code-bg: #efeadd; --warn-bg: #fbe9df; --warn-line: #d9581f;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--text); }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; }
+  ::selection { background: var(--accent-soft); }
+  code, .mono, .toc a, .eyebrow, th, .tag, .path { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h1, h2, h3 { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; text-wrap: balance; letter-spacing: -0.01em; }
+
+  .shell { display: grid; grid-template-columns: 260px minmax(0,1fr); max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 880px) { .shell { grid-template-columns: 1fr; } .toc { display: none; } }
+
+  .toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 20px 32px 28px; border-right: 1px solid var(--line); }
+  .toc .brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .toc .brand .mark { width: 10px; height: 10px; background: var(--accent); display: inline-block; transform: rotate(45deg); flex: none; }
+  .toc .brand b { font-size: 15px; letter-spacing: 0.02em; }
+  .toc .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 28px; }
+  .toc nav { display: flex; flex-direction: column; gap: 2px; }
+  .toc .group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-dim); margin: 16px 0 6px; }
+  .toc .group-label:first-of-type { margin-top: 0; }
+  .toc a { font-size: 12.5px; color: var(--text-dim); text-decoration: none; padding: 5px 8px; border-radius: 3px; display: block; }
+  .toc a:hover { color: var(--text); background: var(--paper-2); }
+
+  main { padding: 40px 48px 120px; min-width: 0; }
+  @media (max-width: 640px) { main { padding: 28px 20px 80px; } }
+
+  .doc-header { margin-bottom: 56px; }
+  .doc-header .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 14px; display: block; }
+  .doc-header h1 { font-size: 36px; margin: 0 0 14px; font-weight: 600; }
+  .doc-header p.lede { font-family: -apple-system, sans-serif; font-size: 17px; color: var(--text-dim); max-width: 66ch; margin: 0 0 20px; }
+  .stack-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { font-size: 11px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--text-dim); background: var(--paper-2); }
+
+  section { margin-bottom: 64px; scroll-margin-top: 24px; }
+  section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; }
+  section > h2::before { content: ""; width: 18px; height: 1px; background: var(--accent); display: inline-block; }
+  section > h3.title { font-family: -apple-system, sans-serif; font-size: 24px; font-weight: 600; margin: 0 0 18px; color: var(--text); }
+  section > p, .prose p { max-width: 74ch; color: var(--text); }
+  section > p.dim { color: var(--text-dim); max-width: 74ch; }
+  h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 28px 0 10px; }
+
+  .pipeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 24px 0 8px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper-2); }
+  .pstage { flex: 1 1 150px; padding: 16px 14px; position: relative; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 140px; }
+  .pstage:last-child { border-right: none; }
+  .pstage .n { font-size: 10px; color: var(--accent); }
+  .pstage .t { font-size: 13.5px; font-weight: 600; font-family: -apple-system, sans-serif; }
+  .pstage .d { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+  .pstage::after { content: "›"; position: absolute; right: -1px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 16px; z-index: 1; }
+  .pstage:last-child::after { content: ""; }
+
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 20px; }
+  .comp { background: var(--paper); padding: 16px 18px; }
+  .comp .path { font-size: 11.5px; color: var(--accent-2); display: block; margin-bottom: 6px; }
+  .comp .role { font-size: 13.5px; font-family: -apple-system, sans-serif; margin: 0 0 6px; font-weight: 600; }
+  .comp .note { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 480px; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; padding: 10px 14px; background: var(--paper-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-family: -apple-system, sans-serif; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td.mono-cell { font-family: ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; color: var(--text); }
+  td.dim { color: var(--text-dim); }
+  tbody tr:hover { background: var(--paper-2); }
+
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; margin: 16px 0; }
+  pre code { color: var(--text); }
+  code.inline { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.88em; border: 1px solid var(--line); }
+
+  .callout { border-left: 3px solid var(--warn-line); background: var(--warn-bg); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .callout .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--warn-line); font-weight: 700; margin-bottom: 6px; }
+  .callout p { margin: 0; font-size: 13.5px; color: var(--text); font-family: -apple-system, sans-serif; }
+  .callout p + p { margin-top: 8px; }
+
+  .note-box { border: 1px solid var(--line); background: var(--paper-2); border-radius: 8px; padding: 14px 18px; margin: 20px 0; }
+  .note-box .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent-2); font-weight: 700; margin-bottom: 6px; }
+  .note-box p { margin: 0; font-size: 13.5px; color: var(--text-dim); font-family: -apple-system, sans-serif; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin-top: 12px; font-size: 13px; }
+  .kv dt { color: var(--accent-2); }
+  .kv dd { margin: 0; color: var(--text-dim); font-family: -apple-system, sans-serif; }
+
+  .phase-list { display: flex; flex-direction: column; gap: 0; margin-top: 20px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .phase { display: grid; grid-template-columns: 90px 1fr; border-bottom: 1px solid var(--line); }
+  .phase:last-child { border-bottom: none; }
+  .phase .ph-n { background: var(--paper-2); padding: 16px 14px; font-size: 12px; color: var(--accent); border-right: 1px solid var(--line); }
+  .phase .ph-b { padding: 16px 18px; }
+  .phase .ph-t { font-family: -apple-system, sans-serif; font-weight: 600; font-size: 14.5px; margin-bottom: 6px; }
+  .phase .ph-d { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+  .phase .ph-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  .cmp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 18px; }
+  @media (max-width: 720px) { .cmp-cols { grid-template-columns: 1fr; } }
+  .cmp-col { background: var(--paper); padding: 20px 22px; }
+  .cmp-col h4 { margin-top: 0; }
+  .cmp-col ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-dim); line-height: 1.7; }
+  .cmp-col ul li b { color: var(--text); }
+
+  hr.rule { border: none; border-top: 1px solid var(--line); margin: 56px 0; }
+  footer { border-top: 1px solid var(--line); padding-top: 24px; font-size: 12px; color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="shell">
+  <aside class="toc">
+    <div class="brand"><span class="mark"></span><b>ClawBot</b></div>
+    <div class="sub">cross-platform expansion · proposal</div>
+    <nav>
+      <div class="group-label">Framing</div>
+      <a href="#goal">The ask</a>
+      <a href="#model">Two-stage match model</a>
+      <div class="group-label">Architecture</div>
+      <a href="#connectors">Platform connectors</a>
+      <a href="#linkedin">Why LinkedIn needs a web app</a>
+      <a href="#dataflow">End-to-end data flow</a>
+      <div class="group-label">Specification</div>
+      <a href="#data">Data model changes</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#linkedin-mechanics">LinkedIn automation mechanics</a>
+      <div class="group-label">Delivery</div>
+      <a href="#roadmap">Build roadmap</a>
+      <a href="#deploy">Cloud deployment (Render)</a>
+      <a href="#risks">Risks &amp; limits</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="doc-header" id="goal">
+      <span class="eyebrow">Approach &amp; requirements</span>
+      <h1>Search → Re-match → Send → Notify, on two platforms</h1>
+      <p class="lede">You want one loop that already works for Instagram — search under a first set of conditions, re-check candidates against a second, tighter condition, and only then send a DM and tell you on Telegram — extended to LinkedIn, with a web app to run and watch it. Below is the concrete approach, what's reused, what's new, and what to build in what order.</p>
+      <div class="stack-row">
+        <span class="tag">Instagram — extend existing engine</span>
+        <span class="tag">LinkedIn — new connector</span>
+        <span class="tag">Web dashboard — new</span>
+        <span class="tag">Telegram — stays as-is</span>
+      </div>
+    </header>
+
+    <section id="model">
+      <h2>01 · The core idea</h2>
+      <h3 class="title">This is already how ClawBot's Instagram engine works</h3>
+      <p class="dim">Look at <code class="inline">src/instagram/discover.js</code>: it doesn't search once and act — it runs a two-stage filter. That pattern is exactly what you described, and it's the thing to generalize across platforms rather than rebuild per-platform.</p>
+
+      <div class="pipeline">
+        <div class="pstage"><span class="n">STAGE 1</span><span class="t">Search condition</span><span class="d">Broad discovery filter — e.g. location hashtag on Instagram, or search keywords + industry + title on LinkedIn</span></div>
+        <div class="pstage"><span class="n">STAGE 2</span><span class="t">Re-match condition</span><span class="d">Narrower qualifying filter against each candidate — e.g. category hashtag match, follower range, bio keywords, AI classification, confidence score</span></div>
+        <div class="pstage"><span class="n">DECISION</span><span class="t">Match?</span><span class="d">Score ≥ threshold → proceed. Below → discard and log why, same as today's confidence gate</span></div>
+        <div class="pstage"><span class="n">ACT</span><span class="t">Send DM</span><span class="d">Queued, rate-limited, human-paced send through the platform connector</span></div>
+        <div class="pstage"><span class="n">NOTIFY</span><span class="t">Tell the operator</span><span class="d">Telegram message (and a live row in the web dashboard) — same <code class="inline">notify()</code> call used today</span></div>
+      </div>
+
+      <p class="dim">The only thing that changes per platform is <b>what Stage 1 and Stage 2 look like</b> and <b>how the DM is physically sent</b>. Everything else — the queue, the rate limiting, the Telegram notifications, the deal/negotiation logic — is platform-agnostic already and should not be duplicated.</p>
+    </section>
+
+    <section id="connectors">
+      <h2>02 · Architecture</h2>
+      <h3 class="title">One connector interface, two implementations</h3>
+      <p class="dim">Introduce a small contract every platform must implement. Instagram's existing code becomes the first implementation of it (a refactor, not a rewrite); LinkedIn becomes the second (new code).</p>
+
+      <pre><code>interface PlatformConnector {
+  search(conditions: SearchConditions): Promise&lt;Candidate[]&gt;;
+  evaluate(candidate: Candidate, conditions: MatchConditions): Promise&lt;MatchResult&gt;;
+  sendMessage(target: Candidate, message: string): Promise&lt;SendResult&gt;;
+  getSessionHealth(): Promise&lt;SessionHealth&gt;;
+}</code></pre>
+
+      <div class="comp-grid">
+        <div class="comp"><span class="path">connectors/instagram/</span><p class="role">Existing engine, wrapped</p><p class="note"><code class="inline">discover.js</code> → <code class="inline">search()</code> + <code class="inline">evaluate()</code>. <code class="inline">client.js</code> → <code class="inline">sendMessage()</code>. Behavior unchanged, just exposed through the shared shape.</p></div>
+        <div class="comp"><span class="path">connectors/linkedin/</span><p class="role">New</p><p class="note">Puppeteer-driven, cookie-authenticated, same shape. Search runs LinkedIn people-search; evaluate reads the profile page; sendMessage sends a connection-request note or a direct message if already connected.</p></div>
+        <div class="comp"><span class="path">core/matchingEngine.js</span><p class="role">Shared</p><p class="note">Generalizes today's <code class="inline">computeConfidence()</code> into a config-driven scorer: a list of weighted rules, a threshold, applied identically regardless of which connector produced the candidate.</p></div>
+        <div class="comp"><span class="path">core/prospectService.js</span><p class="role">Shared (renamed creatorService)</p><p class="note">Platform-tagged version of today's creator lifecycle — add / approve / reject / message-log, generic across Instagram and LinkedIn rows.</p></div>
+        <div class="comp"><span class="path">queues/outreachQueue.js</span><p class="role">Shared (renamed dmQueue)</p><p class="note">Same BullMQ pattern, one queue per platform (separate rate limits — LinkedIn's safe daily ceiling is much lower than Instagram's) but identical job-processing shape.</p></div>
+      </div>
+    </section>
+
+    <section id="linkedin">
+      <h2>03 · Why LinkedIn needs its own web app</h2>
+      <h3 class="title">Telegram cards stop being enough</h3>
+      <p class="dim">Instagram's operator surface is entirely Telegram because the decisions are simple: approve, reject, accept a price. LinkedIn outreach has more moving parts that don't fit an inline-keyboard card, which is the real reason to build the dashboard now rather than force everything through chat:</p>
+
+      <div class="cmp-cols">
+        <div class="cmp-col">
+          <h4>Stays in Telegram</h4>
+          <ul>
+            <li><b>Approve / reject</b> a queued candidate — still a 2-button decision</li>
+            <li><b>Deal accept / reject</b> — unchanged</li>
+            <li><b>Alerts</b> — new reply, account warning, daily cap hit</li>
+            <li><b>Quick pipeline glance</b> — <code class="inline">/list</code>, <code class="inline">/status</code> equivalents</li>
+          </ul>
+        </div>
+        <div class="cmp-col">
+          <h4>Moves to the web dashboard</h4>
+          <ul>
+            <li><b>Building a condition set</b> — LinkedIn search filters (title, industry, location, company size, keyword) don't fit a chat command</li>
+            <li><b>Reviewing a candidate list before sending</b> — a table you can sort/filter/bulk-approve, not one card at a time</li>
+            <li><b>Editing message templates</b> per campaign, with variables</li>
+            <li><b>Account health</b> — connection-request acceptance rate, weekly invite count used, warning banners from LinkedIn — needs a chart, not a chat line</li>
+            <li><b>Multi-account management</b> once you run more than one LinkedIn seat</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note-box">
+        <div class="lbl">Design implication</div>
+        <p>The web app is a <i>campaign &amp; review console</i>, not a replacement control channel. Telegram remains the fast path for yes/no decisions and alerts on both platforms; the dashboard is where you configure conditions, watch pipelines, and manage LinkedIn accounts at a level of detail chat can't express.</p>
+      </div>
+    </section>
+
+    <section id="dataflow">
+      <h2>04 · End-to-end</h2>
+      <h3 class="title">What actually happens on a LinkedIn run</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td class="mono-cell">1</td><td>Operator defines a campaign in the web dashboard: search keywords, title/industry filters, location, connection-degree limit, daily send cap.</td></tr>
+            <tr><td class="mono-cell">2</td><td>Scheduler (same node-cron pattern as today) triggers the LinkedIn connector's <code class="inline">search()</code> — runs LinkedIn's people-search URL through Puppeteer with the operator's session cookies.</td></tr>
+            <tr><td class="mono-cell">3</td><td>Each result goes through <code class="inline">evaluate()</code>: open profile, read headline/about/experience, score against Stage 2 conditions (role keywords, seniority, company size) — same weighted-confidence shape as Instagram.</td></tr>
+            <tr><td class="mono-cell">4</td><td>Matches ≥ threshold land in the shared <code class="inline">prospects</code> table, platform = <code class="inline">linkedin</code>. Telegram gets an approval card; the dashboard's review queue gets a row.</td></tr>
+            <tr><td class="mono-cell">5</td><td>On approval, a job is queued: send a connection request with a personalized note (first touch — LinkedIn requires this before free-form messaging in most cases), rate-limited and delayed like Instagram's outreach queue.</td></tr>
+            <tr><td class="mono-cell">6</td><td>When the request is accepted (polled periodically), the real outreach/negotiation message queues automatically and Telegram is notified: "@name accepted — DM sent."</td></tr>
+            <tr><td class="mono-cell">7</td><td>Replies land back through the same webhook/notify pattern used today — log to <code class="inline">conversations</code>, notify Telegram, surface in the dashboard thread view.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="data">
+      <h2>05 · Data model</h2>
+      <h3 class="title">Generalize, don't fork</h3>
+      <p class="dim">Add a <code class="inline">platform</code> column rather than a parallel LinkedIn schema — the shape of "prospect moving through a pipeline" is identical, only the metadata attached to a row differs.</p>
+      <pre><code>ALTER TABLE creators RENAME TO prospects;
+ALTER TABLE prospects ADD COLUMN platform VARCHAR(20) NOT NULL DEFAULT 'instagram';
+ALTER TABLE prospects ADD COLUMN platform_meta JSONB;  -- title, company, connection_degree, etc.
+
+CREATE TABLE campaigns (
+  id             SERIAL PRIMARY KEY,
+  platform       VARCHAR(20) NOT NULL,
+  name           VARCHAR(255) NOT NULL,
+  search_conditions   JSONB NOT NULL,   -- Stage 1
+  match_conditions    JSONB NOT NULL,   -- Stage 2 + weights + threshold
+  daily_send_cap INTEGER NOT NULL DEFAULT 20,
+  active         BOOLEAN NOT NULL DEFAULT true,
+  created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE platform_accounts (
+  id           SERIAL PRIMARY KEY,
+  platform     VARCHAR(20) NOT NULL,
+  label        VARCHAR(255) NOT NULL,     -- "main LinkedIn seat"
+  cookies_key  VARCHAR(255) NOT NULL,     -- Redis key, mirrors ig_cookies pattern
+  daily_used   INTEGER NOT NULL DEFAULT 0,
+  status       VARCHAR(20) NOT NULL DEFAULT 'healthy', -- healthy / warned / restricted
+  updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);</code></pre>
+      <p class="dim"><code class="inline">conversations</code>, <code class="inline">deals</code>, and <code class="inline">dm_log</code> need no schema change beyond following the rename — they already key off <code class="inline">creator_id</code> / <code class="inline">prospect_id</code> and don't care which platform it came from.</p>
+    </section>
+
+    <section id="requirements">
+      <h2>06 · Requirements</h2>
+      <h3 class="title">Functional</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Requirement</th></tr></thead>
+          <tbody>
+            <tr><td class="mono-cell">FR-1</td><td>Operator can define a campaign per platform with a Stage-1 search condition and a Stage-2 re-match condition, each independently editable.</td></tr>
+            <tr><td class="mono-cell">FR-2</td><td>Every candidate is scored by the shared matching engine; only candidates at or above the campaign's threshold enter the pipeline.</td></tr>
+            <tr><td class="mono-cell">FR-3</td><td>New qualifying candidates trigger a Telegram approval card and a dashboard queue row simultaneously.</td></tr>
+            <tr><td class="mono-cell">FR-4</td><td>Approval queues a platform-appropriate first-touch send (DM on Instagram; connection request + note on LinkedIn) via the rate-limited outreach queue.</td></tr>
+            <tr><td class="mono-cell">FR-5</td><td>LinkedIn connection acceptance is polled and automatically advances the prospect to "message sent" without a second manual approval, unless Auto Mode is off.</td></tr>
+            <tr><td class="mono-cell">FR-6</td><td>Every send and every reply is logged to <code class="inline">conversations</code> and mirrored to Telegram, regardless of platform.</td></tr>
+            <tr><td class="mono-cell">FR-7</td><td>Dashboard shows, per platform account: daily sends used vs. cap, and a status flag (healthy / warned / restricted).</td></tr>
+            <tr><td class="mono-cell">FR-8</td><td>Dashboard authentication is required — this is an operator console, not a public site.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Non-functional</h4>
+      <div class="kv">
+        <dt>Safety-first pacing</dt><dd>LinkedIn's safe daily action ceiling is far lower than Instagram's — connection requests are commonly kept under ~20–25/day per account, vs. Instagram's 40 DM/day default. This must be a per-platform config, not a shared constant.</dd>
+        <dt>Session resilience</dt><dd>Both connectors depend on live browser cookies; the dashboard must surface "cookies stale" the same way <code class="inline">getProfileInfo()</code> already warns today, before a run silently fails.</dd>
+        <dt>Extensibility</dt><dd>A third platform should mean writing one new connector file, not touching the queue, matching engine, or Telegram layer.</dd>
+        <dt>Auditability</dt><dd>Every rejected candidate keeps its score and the reason it failed Stage 2 — mirrors today's discovery logging, needed to tune thresholds later.</dd>
+      </div>
+    </section>
+
+    <section id="linkedin-mechanics">
+      <h2>07 · LinkedIn specifics</h2>
+      <h3 class="title">What's actually different from Instagram</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Aspect</th><th>Instagram (today)</th><th>LinkedIn (new)</th></tr></thead>
+          <tbody>
+            <tr><td>Auth</td><td class="dim">Exported cookies, pushed by the Chrome extension</td><td class="dim">Same pattern — extension already generalizes to any <code class="inline">*.instagram.com</code>-style host; add <code class="inline">linkedin.com</code> cookie capture</td></tr>
+            <tr><td>Search surface</td><td class="dim">Hashtag explore pages</td><td class="dim">LinkedIn people-search URL with query params (keywords, title, location, industry) — no Sales Navigator required for the base case, but Sales Navigator filters are far richer if the account has it</td></tr>
+            <tr><td>First contact</td><td class="dim">Direct DM immediately</td><td class="dim">Usually requires a <b>connection request</b> with an optional short note (≈200 chars) first; free-form messaging is normally gated behind an accepted connection or a paid InMail credit</td></tr>
+            <tr><td>Safe daily volume</td><td class="dim">~40 DMs/day (configurable)</td><td class="dim">Meaningfully lower — LinkedIn tracks weekly invite totals per account and restricts accounts that spike; treat ~15–25/day as a starting ceiling, not a target</td></tr>
+            <tr><td>Detection surface</td><td class="dim">DOM scraping, human-paced typing</td><td class="dim">Same techniques apply, plus LinkedIn is more aggressive about flagging automated browsing patterns and known-headless fingerprints — expect to invest more in stealth (viewport/user-agent variation, longer randomized delays) than Instagram needed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <h2>08 · Build order</h2>
+      <h3 class="title">Four phases, each shippable on its own</h3>
+      <div class="phase-list">
+        <div class="phase">
+          <div class="ph-n">Phase 1</div>
+          <div class="ph-b">
+            <div class="ph-t">Generalize the core — no new platform yet</div>
+            <div class="ph-d">Rename <code class="inline">creators</code> → <code class="inline">prospects</code>, add <code class="inline">platform</code>/<code class="inline">platform_meta</code>, extract <code class="inline">computeConfidence()</code> into a reusable, config-driven matching engine, wrap the existing Instagram code behind the connector interface. Nothing observable changes for the operator.</div>
+            <div class="ph-tags"><span class="tag">DB migration</span><span class="tag">refactor discover.js / client.js</span></div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="ph-n">Phase 2</div>
+          <div class="ph-b">
+            <div class="ph-t">LinkedIn connector, Telegram-only</div>
+            <div class="ph-d">Build search/evaluate/sendMessage for LinkedIn, reusing the outreach queue and Telegram cards exactly as Instagram does today. Validate the connection-request → acceptance-poll → message flow end to end before building any UI.</div>
+            <div class="ph-tags"><span class="tag">Puppeteer</span><span class="tag">cookie extension update</span><span class="tag">new queue lane</span></div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="ph-n">Phase 3</div>
+          <div class="ph-b">
+            <div class="ph-t">Web dashboard v1</div>
+            <div class="ph-d">Read-only pipeline view + campaign condition builder + account health panel, backed by REST endpoints on the existing Express app. Approval can still happen in Telegram; the dashboard is observe-and-configure first.</div>
+            <div class="ph-tags"><span class="tag">React + Vite</span><span class="tag">JWT/session auth</span><span class="tag">new API routes</span></div>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="ph-n">Phase 4</div>
+          <div class="ph-b">
+            <div class="ph-t">Close the loop in the dashboard</div>
+            <div class="ph-d">Bulk approve/reject from the review queue, live status via polling or WebSocket, message-template editor, per-account daily-cap controls — the parts that genuinely don't fit in Telegram.</div>
+            <div class="ph-tags"><span class="tag">WebSocket/polling</span><span class="tag">template engine</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="deploy">
+      <h2>09 · Cloud target</h2>
+      <h3 class="title">Everything above assumes Render, not a bare VM</h3>
+      <p class="dim">The current Instagram-only system already runs on Render as a <code class="inline">Dockerfile</code> + <code class="inline">render.yaml</code> blueprint (see <code class="inline">docs/architecture.html</code>). Every new piece proposed here needs to slot into that same shape rather than introduce a second deployment story.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Piece</th><th>Render shape</th></tr></thead>
+          <tbody>
+            <tr><td>LinkedIn connector</td><td class="dim">Runs inside the existing <code class="inline">clawbot-worker</code> service — same Docker image, same Chromium install, one more BullMQ queue lane (<code class="inline">linkedin-outreach</code>) alongside the Instagram one, each with its own daily cap.</td></tr>
+            <tr><td>Discovery scheduling per platform</td><td class="dim">Stays in <code class="inline">clawbot-web</code>'s <code class="inline">node-cron</code> — same singleton-instance constraint applies to whichever platform's scan is running.</td></tr>
+            <tr><td>Web dashboard (React)</td><td class="dim">Two options: (a) build it as static assets and serve them from the existing Express app (<code class="inline">clawbot-web</code>) behind the same domain, zero new services; or (b) a separate Render <b>Static Site</b> service calling the Express API as its backend. Start with (a) — one service to operate is simpler until the dashboard has its own release cadence.</td></tr>
+            <tr><td>Dashboard auth</td><td class="dim">A session/JWT secret becomes a new entry in the <code class="inline">clawbot-secrets</code> env var group — same mechanism already used for <code class="inline">EXTENSION_SECRET_KEY</code>.</td></tr>
+            <tr><td>LinkedIn cookies</td><td class="dim">Same Redis-backed pattern as Instagram's <code class="inline">ig_cookies</code> — a <code class="inline">li_cookies</code> key, pushed by extending the existing Chrome extension to also capture <code class="inline">linkedin.com</code> cookies. No new infrastructure.</td></tr>
+            <tr><td>Account health polling</td><td class="dim">A lightweight scheduled check (reuse <code class="inline">node-cron</code> in <code class="inline">clawbot-web</code>) that updates <code class="inline">platform_accounts.status</code> — surfaced in both Telegram alerts and the dashboard, not a separate service.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note-box">
+        <div class="lbl">Still one web instance</div>
+        <p>Adding a dashboard doesn't relax the earlier constraint — <code class="inline">clawbot-web</code> stays at <code class="inline">numInstances: 1</code> regardless of how much traffic the dashboard gets, because the cron and Telegram polling living in that same process are still singletons. If dashboard load ever becomes a real concern, split it into its own stateless service that only talks to Postgres/Redis — never let it share a container with the cron/polling process.</p>
+      </div>
+    </section>
+
+    <section id="risks">
+      <h2>10 · Read before building</h2>
+      <h3 class="title">Constraints that shape the design above</h3>
+      <div class="callout">
+        <div class="lbl">LinkedIn enforcement is stricter than Instagram's</div>
+        <p>LinkedIn actively litigates and technically fights scraping/automation more aggressively than most platforms, and account restrictions can be faster and harder to reverse. Everything above assumes conservative daily caps and a willingness to run manual-approval-only (no LinkedIn equivalent of Auto Mode) until account health data justifies otherwise.</p>
+      </div>
+      <div class="note-box">
+        <div class="lbl">Reuse over rewrite</div>
+        <p>The single biggest risk to this project is building LinkedIn as a parallel system instead of a second connector. If <code class="inline">discover.js</code>'s two-stage scoring, the BullMQ queue shape, and <code class="inline">notify()</code> aren't extracted into shared modules first (Phase 1), every platform added after LinkedIn doubles the maintenance surface again.</p>
+      </div>
+      <div class="note-box">
+        <div class="lbl">Dashboard auth is not optional</div>
+        <p>Unlike Telegram (implicitly scoped to registered chat IDs), a web dashboard is reachable by URL. It needs real authentication before it ships, not after — see the hardcoded-password note already flagged in the current architecture doc for what happens when this gets deferred.</p>
+      </div>
+    </section>
+
+    <hr class="rule" />
+    <footer>
+      Proposal, not implementation — no code from this document exists in the repository yet. Cross-reference against <span class="mono">docs/architecture.html</span> for what's actually built today.
+    </footer>
+  </main>
+</div>

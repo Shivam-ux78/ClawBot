@@ -1,8 +1,8 @@
-import puppeteer from 'puppeteer';
 import { config } from '../config.js';
 import fs from 'fs';
 import path from 'path';
 import { connection } from '../queues/dmQueue.js';
+import { launchBrowser } from './browser.js';
 
 const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
 
@@ -47,10 +47,7 @@ export async function getProfileInfo(username) {
   try { cookies = JSON.parse(cookiesStr); }
   catch { return { followers: null }; }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();
@@ -132,10 +129,7 @@ async function sendReal(username, message, extras) {
   }
 
   console.log(`[Puppeteer] Launching hidden browser...`);
-  const browser = await puppeteer.launch({
-    headless: true, // change to false if you want to visually see the browser
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();

@@ -1,0 +1,93 @@
+# Render Blueprint — see docs/architecture.html "Deploying on Render" for the reasoning.
+#
+# Two services share one Dockerfile:
+#   - clawbot-web    runs the Express server + Telegram bot (polling) + discovery cron
+#   - clawbot-worker runs the BullMQ DM worker (Telegram bot in send-only mode)
+#
+# IMPORTANT: keep clawbot-web at exactly 1 instance. node-cron and the Telegram
+# bot's polling both assume a singleton process — scaling this service
+# horizontally causes duplicate discovery runs and Telegram 409 conflicts.
+#
+# Postgres and Redis are NOT provisioned here — this app already targets
+# managed Supabase (Postgres) and Upstash (Redis) via connection strings, set
+# as secrets below. Swap in Render's own Postgres/Key Value instead if you'd
+# rather keep everything on one platform; no code changes are required either
+# way, only DATABASE_URL / REDIS_URL.
+
+services:
+  - type: web
+    name: clawbot-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: clawbot-secrets
+      - key: PORT
+        value: 3000
+
+  - type: worker
+    name: clawbot-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node src/queues/worker.js
+    plan: starter
+    numInstances: 1
+    envVars:
+      - fromGroup: clawbot-secrets
+
+envVarGroups:
+  - name: clawbot-secrets
+    envVars:
+      # Required — validateConfig() throws at boot without these
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+      # Puppeteer — must match the Dockerfile's installed Chromium
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+
+      # Budget
+      - key: MIN_BUDGET
+        value: "50"
+      - key: TARGET_BUDGET
+        value: "100"
+      - key: MAX_BUDGET
+        value: "150"
+
+      # Safety / rate limiting
+      - key: DM_DAILY_LIMIT
+        value: "30"
+      - key: DM_DELAY_MIN_SEC
+        value: "60"
+      - key: DM_DELAY_MAX_SEC
+        value: "90"
+
+      # Instagram
+      - key: INSTAGRAM_STUB_MODE
+        value: "false"
+
+      # Meta webhook / extension auth — set your own values, don't keep the defaults
+      - key: META_VERIFY_TOKEN
+        sync: false
+      - key: EXTENSION_SECRET_KEY
+        sync: false
+
+      # Optional — WhatsApp mirror via Green API
+      - key: WHATSAPP_ID_INSTANCE
+        sync: false
+      - key: WHATSAPP_API_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE
+        sync: false

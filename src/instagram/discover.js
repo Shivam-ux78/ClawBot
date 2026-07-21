@@ -1,10 +1,10 @@
-import puppeteer from 'puppeteer';
 import { config } from '../config.js';
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
 import { connection } from '../queues/dmQueue.js';
+import { launchBrowser } from './browser.js';
 
 const COOKIES_PATH = path.resolve('www.instagram.com.cookies.json');
 
@@ -405,10 +405,7 @@ export async function discoverCreators({
   console.log(`[Discover] Category tags: ${[...categorySet].join(', ')} | Range: ${minFollowers}-${maxFollowers} | MinConfidence: ${minConfidence} | CategoryFilter: ${categoryFilterEnabled} | Connections: ${scanConnectionsEnabled}`);
   if (onProgress) onProgress(`🔍 Location-first scan: *${locationTags.length} location tags* → filter by *${categorySet.size} category tags*`);
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
-  });
+  const browser = await launchBrowser();
 
   const discovered = [];
   const seenUsernames = new Set();

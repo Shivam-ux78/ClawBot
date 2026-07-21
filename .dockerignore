@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.local
+*.csv
+*cookies*.json
+www.instagram.com.cookies.json
+scratch
+docs
+extension
+ClawBot-Sync-Extension.zip
+plan.md
+planUpdate.md
+README.md

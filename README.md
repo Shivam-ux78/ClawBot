@@ -71,6 +71,35 @@ npm run worker
 
 ---
 
+## ☁️ Deploying on Render
+
+The app ships with a `Dockerfile` and `render.yaml` blueprint — Puppeteer needs a real Chromium binary and its shared libraries, which a plain Node buildpack doesn't reliably provide, so the container installs `chromium` via `apt-get` and points Puppeteer at it.
+
+### 1. Push the blueprint
+In the Render dashboard: **New → Blueprint**, point it at this repo. Render reads `render.yaml` and creates two services from the same `Dockerfile`:
+
+| Service | Runs | Notes |
+|---|---|---|
+| `clawbot-web` | `node src/index.js` | Express API + Telegram bot (polling) + discovery cron |
+| `clawbot-worker` | `node src/queues/worker.js` (via `dockerCommand`) | BullMQ DM worker, Telegram bot in send-only mode |
+
+### 2. Set the secrets
+`render.yaml` declares an `clawbot-secrets` env var group with every variable the app reads (see [.env.example](.env.example)). Fill in the `sync: false` ones in the Render dashboard: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENAI_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `META_VERIFY_TOKEN`, `EXTENSION_SECRET_KEY`.
+
+Keep using managed Supabase (Postgres) and Upstash (Redis) — just paste their connection strings in. Render's own Postgres/Key Value work too; only the connection string changes, no code does.
+
+### 3. Push Instagram cookies
+Cookies are never baked into the image or committed — the container's filesystem is wiped on every redeploy. Instead, the server reads them from Redis (`ig_cookies` key), written there by:
+- the **ClawBot Chrome Extension** (`extension/`), which syncs your logged-in session every 30 minutes via `POST /api/cookies/update`, or
+- manually, by calling that same endpoint with `secretKey` = your `EXTENSION_SECRET_KEY`.
+
+### 4. Constraints specific to this app
+- **Keep `clawbot-web` at exactly 1 instance.** `node-cron` (discovery scheduling) and the Telegram bot's long-polling both assume a single process — autoscaling this service causes duplicate discovery runs and Telegram `409 Conflict` errors from two pollers fighting over the same bot token.
+- **The worker is a separate always-on service, not a cron job.** If `clawbot-worker` is stopped or crash-looping, creators still move through approval but no DM is ever actually sent — check its logs first when outreach appears stuck.
+- **`/health` is wired as the health check path** for `clawbot-web`; Render restarts the service if it stops responding.
+
+---
+
 ## 🎮 Usage
 
 ### Add a Creator (Stage 1)

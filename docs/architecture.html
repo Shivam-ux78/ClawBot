@@ -1,0 +1,652 @@
+<title>ClawBot — System Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink: #14161c;
+    --ink-2: #1d2028;
+    --paper: #faf8f4;
+    --paper-2: #f1ede4;
+    --text: #1b1c20;
+    --text-dim: #5b5d66;
+    --line: #ded8c9;
+    --accent: #d9581f;
+    --accent-soft: #f3e2d3;
+    --accent-2: #1f7a6c;
+    --accent-2-soft: #dcece7;
+    --code-bg: #efeadd;
+    --warn-bg: #fbe9df;
+    --warn-line: #d9581f;
+    --shadow: 0 1px 2px rgba(20,15,5,0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #eceae4;
+      --paper: #100f13;
+      --paper-2: #17161c;
+      --text: #eae7e0;
+      --text-dim: #9b98a3;
+      --line: #33313c;
+      --accent: #ff8a4c;
+      --accent-soft: #3a2418;
+      --accent-2: #4fc3ae;
+      --accent-2-soft: #12302b;
+      --code-bg: #1b1a21;
+      --warn-bg: #2c1c14;
+      --warn-line: #ff8a4c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #eceae4;
+    --paper: #100f13;
+    --paper-2: #17161c;
+    --text: #eae7e0;
+    --text-dim: #9b98a3;
+    --line: #33313c;
+    --accent: #ff8a4c;
+    --accent-soft: #3a2418;
+    --accent-2: #4fc3ae;
+    --accent-2-soft: #12302b;
+    --code-bg: #1b1a21;
+    --warn-bg: #2c1c14;
+    --warn-line: #ff8a4c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
+  :root[data-theme="light"] {
+    --ink: #14161c;
+    --paper: #faf8f4;
+    --paper-2: #f1ede4;
+    --text: #1b1c20;
+    --text-dim: #5b5d66;
+    --line: #ded8c9;
+    --accent: #d9581f;
+    --accent-soft: #f3e2d3;
+    --accent-2: #1f7a6c;
+    --accent-2-soft: #dcece7;
+    --code-bg: #efeadd;
+    --warn-bg: #fbe9df;
+    --warn-line: #d9581f;
+    --shadow: 0 1px 2px rgba(20,15,5,0.06);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    background: var(--paper);
+    color: var(--text);
+  }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  ::selection { background: var(--accent-soft); }
+
+  code, .mono, .toc a, .eyebrow, th, .tag, .pill, .kv dt, .path {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h1, h2, h3 { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; text-wrap: balance; letter-spacing: -0.01em; }
+
+  /* ── Shell layout ───────────────────────────────────────── */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  @media (max-width: 880px) {
+    .shell { grid-template-columns: 1fr; }
+    .toc { display: none; }
+  }
+
+  .toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 32px 20px 32px 28px;
+    border-right: 1px solid var(--line);
+  }
+  .toc .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .toc .brand .mark {
+    width: 10px; height: 10px;
+    background: var(--accent);
+    display: inline-block;
+    transform: rotate(45deg);
+    flex: none;
+  }
+  .toc .brand b { font-size: 15px; letter-spacing: 0.02em; }
+  .toc .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 28px; }
+  .toc nav { display: flex; flex-direction: column; gap: 2px; }
+  .toc .group-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--text-dim); margin: 16px 0 6px;
+  }
+  .toc .group-label:first-of-type { margin-top: 0; }
+  .toc a {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 5px 8px;
+    border-radius: 3px;
+    display: block;
+    border-left: 2px solid transparent;
+  }
+  .toc a:hover { color: var(--text); background: var(--paper-2); }
+
+  main { padding: 40px 48px 120px; min-width: 0; }
+  @media (max-width: 640px) { main { padding: 28px 20px 80px; } }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  .doc-header { margin-bottom: 56px; }
+  .doc-header .eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--accent); margin-bottom: 14px; display: block;
+  }
+  .doc-header h1 {
+    font-size: 40px; margin: 0 0 14px; font-weight: 600;
+  }
+  .doc-header p.lede {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; color: var(--text-dim); max-width: 62ch; margin: 0 0 20px;
+  }
+  .stack-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    font-size: 11px; padding: 4px 9px; border: 1px solid var(--line);
+    border-radius: 4px; color: var(--text-dim); background: var(--paper-2);
+  }
+
+  section { margin-bottom: 64px; scroll-margin-top: 24px; }
+  section > h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); font-weight: 600; margin: 0 0 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  section > h2::before { content: ""; width: 18px; height: 1px; background: var(--accent); display: inline-block; }
+  section > h3.title {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 24px; font-weight: 600; margin: 0 0 18px; color: var(--text);
+  }
+  section > p, .prose p { max-width: 72ch; color: var(--text); }
+  section > p.dim { color: var(--text-dim); max-width: 72ch; }
+
+  h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 28px 0 10px; }
+
+  /* ── Pipeline diagram ───────────────────────────────────── */
+  .pipeline {
+    display: flex; flex-wrap: wrap; align-items: stretch; gap: 0;
+    margin: 24px 0 8px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    background: var(--paper-2);
+  }
+  .pstage {
+    flex: 1 1 150px; padding: 16px 14px; position: relative;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 6px; min-width: 130px;
+  }
+  .pstage:last-child { border-right: none; }
+  .pstage .n { font-size: 10px; color: var(--accent); }
+  .pstage .t { font-size: 13.5px; font-weight: 600; font-family: -apple-system, sans-serif; }
+  .pstage .d { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+  .pstage::after {
+    content: "›"; position: absolute; right: -1px; top: 50%; transform: translateY(-50%);
+    color: var(--text-dim); font-size: 16px; z-index: 1;
+  }
+  .pstage:last-child::after { content: ""; }
+
+  .actors { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 4px; }
+  .actor {
+    display: flex; align-items: center; gap: 7px; font-size: 12px;
+    padding: 6px 10px; border: 1px solid var(--line); border-radius: 20px; color: var(--text-dim);
+  }
+  .actor .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* ── Component grid ─────────────────────────────────────── */
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 20px; }
+  .comp {
+    background: var(--paper); padding: 16px 18px;
+  }
+  .comp .path { font-size: 11.5px; color: var(--accent-2); display: block; margin-bottom: 6px; }
+  .comp .role { font-size: 13.5px; font-family: -apple-system, sans-serif; margin: 0 0 6px; font-weight: 600; }
+  .comp .note { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+
+  /* ── Tables ─────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 480px; }
+  thead th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); font-weight: 600; padding: 10px 14px; background: var(--paper-2);
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-family: -apple-system, sans-serif; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child, tbody td.mono-cell { font-family: ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; color: var(--text); }
+  td.dim, span.dim-i { color: var(--text-dim); }
+  tbody tr:hover { background: var(--paper-2); }
+
+  /* ── State machine ──────────────────────────────────────── */
+  .state-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+  .state-chip {
+    font-size: 12px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line);
+    background: var(--paper-2); white-space: nowrap;
+  }
+  .state-chip.terminal { border-style: dashed; }
+  .arrow { color: var(--text-dim); font-size: 14px; }
+
+  .bot-states { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .bs { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; }
+  .bs .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-green { background: #3aa76d; }
+  .dot-amber { background: var(--accent); }
+  .dot-red { background: #d24545; }
+
+  /* ── Confidence formula ─────────────────────────────────── */
+  .formula-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 18px 0; }
+  @media (max-width: 640px) { .formula-grid { grid-template-columns: 1fr 1fr; } }
+  .fcell { background: var(--paper); padding: 14px 16px; text-align: center; }
+  .fcell .pts { font-size: 22px; font-weight: 700; color: var(--accent); font-family: ui-monospace, monospace; }
+  .fcell .lbl { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ── Code blocks ────────────────────────────────────────── */
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; margin: 16px 0;
+  }
+  pre code { color: var(--text); }
+  code.inline {
+    background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.88em;
+    border: 1px solid var(--line);
+  }
+
+  /* ── Callouts ───────────────────────────────────────────── */
+  .callout {
+    border-left: 3px solid var(--warn-line); background: var(--warn-bg);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 20px 0;
+  }
+  .callout .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--warn-line); font-weight: 700; margin-bottom: 6px; }
+  .callout p { margin: 0; font-size: 13.5px; color: var(--text); font-family: -apple-system, sans-serif; }
+  .callout p + p { margin-top: 8px; }
+
+  .note-box {
+    border: 1px solid var(--line); background: var(--paper-2); border-radius: 8px;
+    padding: 14px 18px; margin: 20px 0;
+  }
+  .note-box .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent-2); font-weight: 700; margin-bottom: 6px; }
+  .note-box p { margin: 0; font-size: 13.5px; color: var(--text-dim); font-family: -apple-system, sans-serif; }
+
+  /* ── kv / env list ──────────────────────────────────────── */
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin-top: 12px; font-size: 13px; }
+  .kv dt { color: var(--accent-2); }
+  .kv dd { margin: 0; color: var(--text-dim); font-family: -apple-system, sans-serif; }
+
+  hr.rule { border: none; border-top: 1px solid var(--line); margin: 56px 0; }
+
+  footer { border-top: 1px solid var(--line); padding-top: 24px; font-size: 12px; color: var(--text-dim); }
+
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="shell">
+  <aside class="toc">
+    <div class="brand"><span class="mark"></span><b>ClawBot</b></div>
+    <div class="sub">system architecture · v1</div>
+    <nav>
+      <div class="group-label">Overview</div>
+      <a href="#overview">What it is</a>
+      <a href="#pipeline">Pipeline &amp; actors</a>
+      <div class="group-label">Core</div>
+      <a href="#components">Module map</a>
+      <a href="#data">Data model</a>
+      <a href="#states">Creator lifecycle</a>
+      <div class="group-label">Subsystems</div>
+      <a href="#discovery">Discovery engine</a>
+      <a href="#negotiation">AI negotiation</a>
+      <a href="#queue">Queue &amp; rate limits</a>
+      <a href="#telegram">Telegram control plane</a>
+      <a href="#instagram">Instagram delivery</a>
+      <div class="group-label">Operating it</div>
+      <a href="#integrations">External integrations</a>
+      <a href="#config">Configuration</a>
+      <a href="#deploy">Deploying on Render</a>
+      <a href="#risks">Operational notes</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="doc-header" id="overview">
+      <span class="eyebrow">Architecture reference</span>
+      <h1>ClawBot</h1>
+      <p class="lede">An AI + human hybrid system that finds Instagram creators, sends cold outreach DMs through a headless browser, negotiates deal terms with GPT-4o, and routes every decision point to a human operator over Telegram.</p>
+      <div class="stack-row">
+        <span class="tag">Node.js / Express</span>
+        <span class="tag">PostgreSQL</span>
+        <span class="tag">Redis + BullMQ</span>
+        <span class="tag">Puppeteer</span>
+        <span class="tag">OpenAI gpt-4o</span>
+        <span class="tag">Telegram Bot API</span>
+        <span class="tag">Chrome Extension (MV3)</span>
+      </div>
+    </header>
+
+    <section id="pipeline">
+      <h2>01 · Flow</h2>
+      <h3 class="title">One creator, five stages</h3>
+      <p class="dim">Everything the system does routes a creator through the same five stages. Human approval gates sit at stage 2 and stage 5 — the bot never sends money-committing messages unsupervised unless Auto Mode is explicitly turned on.</p>
+
+      <div class="pipeline">
+        <div class="pstage">
+          <span class="n">01</span>
+          <span class="t">Discover</span>
+          <span class="d">Cron scrapes IG location + category hashtags, scores candidates, inserts into <code class="inline">creators</code></span>
+        </div>
+        <div class="pstage">
+          <span class="n">02</span>
+          <span class="t">Approve</span>
+          <span class="d">Telegram card → operator taps Approve/Reject (skipped in Auto Mode)</span>
+        </div>
+        <div class="pstage">
+          <span class="n">03</span>
+          <span class="t">Outreach</span>
+          <span class="d">BullMQ job delays 60–90s, Puppeteer follows + DMs from a real session</span>
+        </div>
+        <div class="pstage">
+          <span class="n">04</span>
+          <span class="t">Negotiate</span>
+          <span class="d">Creator reply → GPT-4o drafts counter or reads a quoted price against budget</span>
+        </div>
+        <div class="pstage">
+          <span class="n">05</span>
+          <span class="t">Close</span>
+          <span class="d">Deal card → operator accepts/rejects → confirmation or decline DM queued</span>
+        </div>
+      </div>
+
+      <div class="actors">
+        <span class="actor"><span class="dot" style="background:var(--accent)"></span>Operator (Telegram)</span>
+        <span class="actor"><span class="dot" style="background:var(--accent-2)"></span>ClawBot server</span>
+        <span class="actor"><span class="dot" style="background:#8a7bd8"></span>OpenAI gpt-4o</span>
+        <span class="actor"><span class="dot" style="background:#3aa76d"></span>Instagram (via cookies)</span>
+      </div>
+    </section>
+
+    <section id="components">
+      <h2>02 · Structure</h2>
+      <h3 class="title">Module map</h3>
+      <p class="dim">A single Express process serves the API, Telegram bot, and cron scheduler; a second process (<code class="inline">npm run worker</code>) drains the DM queue. Both share one Postgres database and one Redis instance.</p>
+
+      <div class="comp-grid">
+        <div class="comp"><span class="path">src/index.js</span><p class="role">App entry</p><p class="note">Boots config, DB, bot, routes; loads operator overrides (chat IDs, follower range, discovery target) from the <code class="inline">settings</code> table so they survive a redeploy.</p></div>
+        <div class="comp"><span class="path">src/config.js</span><p class="role">Config &amp; validation</p><p class="note">Reads env vars, sets discovery defaults (hashtag lists, budget bounds, DM pacing), fails fast if Telegram/OpenAI/DB vars are missing.</p></div>
+        <div class="comp"><span class="path">src/db.js</span><p class="role">Postgres access</p><p class="note">Single connection pool; runs idempotent <code class="inline">CREATE TABLE IF NOT EXISTS</code> / <code class="inline">ADD COLUMN IF NOT EXISTS</code> migrations on boot.</p></div>
+        <div class="comp"><span class="path">src/services/creatorService.js</span><p class="role">Creator lifecycle</p><p class="note">Add / approve / reject a creator, build the outreach message, log conversation turns.</p></div>
+        <div class="comp"><span class="path">src/services/dealService.js</span><p class="role">Deal lifecycle</p><p class="note">Create, accept, reject deals; supersedes stale pending deals automatically.</p></div>
+        <div class="comp"><span class="path">src/services/whatsappService.js</span><p class="role">WhatsApp mirror</p><p class="note">Best-effort duplicate notification via Green API; no-ops silently if unconfigured.</p></div>
+        <div class="comp"><span class="path">src/instagram/client.js</span><p class="role">DM delivery</p><p class="note">Puppeteer: loads cookies, follows, opens the message composer, types, sends. Stub mode logs instead.</p></div>
+        <div class="comp"><span class="path">src/instagram/discover.js</span><p class="role">Discovery engine</p><p class="note">Location-first hashtag crawl, profile scoring, connection-graph expansion. Detailed below.</p></div>
+        <div class="comp"><span class="path">src/instagram/browser.js</span><p class="role">Browser launcher</p><p class="note">Single <code class="inline">launchBrowser()</code> used by both discovery and DM sending; resolves <code class="inline">PUPPETEER_EXECUTABLE_PATH</code> so the same code runs against the local bundled Chrome or the container's apt-installed Chromium on Render.</p></div>
+        <div class="comp"><span class="path">src/jobs/discoveryJob.js</span><p class="role">Cron orchestration</p><p class="note">Schedules scans, holds the Auto Mode / category-filter toggles, auto re-scans after an empty run.</p></div>
+        <div class="comp"><span class="path">src/queues/dmQueue.js</span><p class="role">Queue producer</p><p class="note">BullMQ queue definition + <code class="inline">enqueueDM()</code> with randomized human-like delay.</p></div>
+        <div class="comp"><span class="path">src/queues/worker.js</span><p class="role">Queue consumer</p><p class="note">Separate process. Enforces the daily DM cap, calls the Instagram client, writes to <code class="inline">dm_log</code> + <code class="inline">conversations</code>.</p></div>
+        <div class="comp"><span class="path">src/ai/negotiate.js</span><p class="role">GPT-4o layer</p><p class="note">System-prompted brand persona; generates replies/counters/confirmations and extracts a quoted price from free text.</p></div>
+        <div class="comp"><span class="path">src/telegram/bot.js</span><p class="role">Bot + cards</p><p class="note">Approval and deal cards with inline buttons; broadcast <code class="inline">notify()</code> to all registered chat IDs.</p></div>
+        <div class="comp"><span class="path">src/telegram/handlers.js</span><p class="role">Command surface</p><p class="note">Every slash command and callback query — the operator's entire control interface. Detailed below.</p></div>
+        <div class="comp"><span class="path">src/routes/creators.js</span><p class="role">REST API</p><p class="note"><code class="inline">POST /api/creators/add</code>, <code class="inline">GET /api/creators</code> — programmatic / CSV entry point.</p></div>
+        <div class="comp"><span class="path">src/routes/webhook.js</span><p class="role">Meta webhook</p><p class="note">Verifies + receives official Instagram Graph API messages; resolves sender ID → username, logs and notifies (no auto-reply).</p></div>
+        <div class="comp"><span class="path">extension/</span><p class="role">Cookie sync (Chrome MV3)</p><p class="note">Reads the operator's live Instagram session cookies and pushes them to Redis every 30 min, so Puppeteer never runs on stale auth.</p></div>
+      </div>
+    </section>
+
+    <section id="data">
+      <h2>03 · Persistence</h2>
+      <h3 class="title">Data model</h3>
+      <p class="dim">Five tables, all in Postgres. <code class="inline">settings</code> exists purely so operator-tuned values (chat IDs, follower range, discovery target) survive process restarts on ephemeral hosts like Render, where the container filesystem is wiped on every redeploy.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Table</th><th>Purpose</th><th>Key columns</th></tr></thead>
+          <tbody>
+            <tr><td>creators</td><td>One row per prospect / creator</td><td class="dim">state, bot_state, followers, category, confidence, quoted_price</td></tr>
+            <tr><td>conversations</td><td>Full DM transcript, both directions</td><td class="dim">creator_id, direction (in/out), sent_by, message</td></tr>
+            <tr><td>deals</td><td>Proposed / resolved price agreements</td><td class="dim">creator_id, proposed_price, status (pending/accepted/rejected/superseded)</td></tr>
+            <tr><td>dm_log</td><td>Timestamp of every DM actually sent</td><td class="dim">creator_id, sent_at — backs the daily rate-limit check</td></tr>
+            <tr><td>settings</td><td>Operator-tuned runtime overrides</td><td class="dim">key/value: TELEGRAM_CHAT_IDS, FOLLOWER_RANGE, DISCOVERY_LOCATION, DISCOVERY_CATEGORY</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="states">
+      <h2>04 · Lifecycle</h2>
+      <h3 class="title">Creator state machine</h3>
+      <p class="dim">Two independent state fields ride on every creator row: <code class="inline">state</code> tracks pipeline position, <code class="inline">bot_state</code> tracks whether the AI is currently allowed to speak.</p>
+
+      <h4>Pipeline state</h4>
+      <div class="state-row">
+        <span class="state-chip">pending</span><span class="arrow">→</span>
+        <span class="state-chip">approved</span><span class="arrow">→</span>
+        <span class="state-chip">outreach_sent</span><span class="arrow">→</span>
+        <span class="state-chip terminal">deal_closed</span>
+      </div>
+      <div class="state-row">
+        <span class="arrow" style="visibility:hidden">→</span>
+        <span class="state-chip terminal">rejected</span>
+        <span class="state-chip terminal" style="margin-left:8px">deal_rejected</span>
+      </div>
+
+      <h4>Bot control state</h4>
+      <div class="bot-states">
+        <div class="bs"><span class="dot dot-green"></span><b>active</b><span class="dim-i">— AI replies automatically</span></div>
+        <div class="bs"><span class="dot dot-amber"></span><b>paused</b><span class="dim-i">— bot goes silent, <code class="inline">/pause</code></span></div>
+        <div class="bs"><span class="dot dot-red"></span><b>manual</b><span class="dim-i">— permanent human handoff, <code class="inline">/manual</code></span></div>
+      </div>
+    </section>
+
+    <section id="discovery">
+      <h2>05 · Subsystem</h2>
+      <h3 class="title">Discovery engine — location-first, then category</h3>
+      <p class="dim"><code class="inline">src/instagram/discover.js</code> runs on a cron (default every 6h) and again automatically 30 minutes after any run that finds nothing. It deliberately searches geography before niche:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th>What happens</th></tr></thead>
+          <tbody>
+            <tr><td class="mono-cell">1</td><td>Open a US location hashtag (country → state → city, e.g. <code class="inline">#losangeles</code>) and collect recent post/reel links.</td></tr>
+            <tr><td class="mono-cell">2</td><td>For each post, read the author and the post's own hashtags.</td></tr>
+            <tr><td class="mono-cell">3</td><td>Keep the post only if its hashtags intersect the category set (couple/relationship/etc) — skippable via <code class="inline">/StopCategoryFilter</code>.</td></tr>
+            <tr><td class="mono-cell">4–5</td><td>Visit the author's profile: reject if follower count is out of range, account is private, or "About this account" names a clearly non-US country.</td></tr>
+            <tr><td class="mono-cell">6</td><td>GPT-4o-mini classifies the profile into one category from a fixed list; must land in the keep-list.</td></tr>
+            <tr><td class="mono-cell">7</td><td>Compute a 0–100 confidence score (below); reject under the configured threshold.</td></tr>
+            <tr><td class="mono-cell">8</td><td>On a qualifying creator, sample their followers/following — creators cluster geographically — and run steps 4–7 on those too.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Confidence score</h4>
+      <div class="formula-grid">
+        <div class="fcell"><div class="pts">+40</div><div class="lbl">Location = US</div></div>
+        <div class="fcell"><div class="pts">+20 / −10</div><div class="lbl">Bio keyword score</div></div>
+        <div class="fcell"><div class="pts">+30</div><div class="lbl">Post themes match</div></div>
+        <div class="fcell"><div class="pts">+10</div><div class="lbl">GPT category kept</div></div>
+      </div>
+      <p class="dim">Default threshold is 80%. Every rejection is logged with its score and reason so a scan can be tuned after the fact.</p>
+
+      <div class="note-box">
+        <div class="lbl">Operator levers</div>
+        <p><code class="inline">/range</code> (follower bounds) · <code class="inline">/settarget</code> (location + category) · <code class="inline">/StopCategoryFilter</code> / <code class="inline">/StartCategoryFilter</code> · <code class="inline">/Auto</code> / <code class="inline">/Manual</code> · <code class="inline">/stop &lt;hours&gt;</code> / <code class="inline">/startscan</code> — all writable live from Telegram, persisted to <code class="inline">settings</code>.</p>
+      </div>
+    </section>
+
+    <section id="negotiation">
+      <h2>06 · Subsystem</h2>
+      <h3 class="title">AI negotiation</h3>
+      <p class="dim"><code class="inline">src/ai/negotiate.js</code> wraps GPT-4o behind one system prompt: warm, concise, never reveals budget ceilings. Budget logic is a pure function over three configured numbers.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Creator's quoted price</th><th>Decision</th><th>Outcome</th></tr></thead>
+          <tbody>
+            <tr><td class="mono-cell">&gt; MAX_BUDGET</td><td>counter</td><td class="dim">GPT drafts a counter-offer anchored near TARGET_BUDGET</td></tr>
+            <tr><td class="mono-cell">MIN ≤ price ≤ MAX</td><td>propose_deal</td><td class="dim">Deal card sent to Telegram for accept/reject</td></tr>
+            <tr><td class="mono-cell">&lt; MIN_BUDGET</td><td>accept</td><td class="dim">Still routed through a deal card — "too good to auto-accept unseen"</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="dim">Price extraction is regex-based (<code class="inline">extractPrice()</code>), not model-based — it matches <code class="inline">$200</code>, <code class="inline">200 USD</code>, <code class="inline">200 dollars</code>, etc. Reply generation, counter-offers, and deal confirmations are three separate prompted calls, each capped at 150–300 tokens to keep messages DM-length.</p>
+    </section>
+
+    <section id="queue">
+      <h2>07 · Subsystem</h2>
+      <h3 class="title">Queue &amp; rate limiting</h3>
+      <p class="dim">Every outbound DM — outreach, counter, decline, confirmation — goes through one BullMQ queue (<code class="inline">dm-queue</code>) so the worker process is the only thing that ever touches Puppeteer.</p>
+      <div class="kv">
+        <dt>Randomized delay</dt><dd>60–90s by default (<code class="inline">DM_DELAY_MIN_SEC</code> / <code class="inline">_MAX_SEC</code>), overridable per job</dd>
+        <dt>Daily cap</dt><dd><code class="inline">DM_DAILY_LIMIT</code> (default 40) — worker counts <code class="inline">dm_log</code> rows since midnight and skips the job rather than erroring</dd>
+        <dt>Retry policy</dt><dd>3 attempts, exponential backoff from 5s; jobs are removed on both completion and final failure</dd>
+        <dt>Concurrency</dt><dd>1 — DMs are sent strictly one at a time through a single hidden browser</dd>
+      </div>
+      <div class="callout">
+        <div class="lbl">Single point of failure</div>
+        <p>The worker is a separate, always-on Node process (<code class="inline">npm run worker</code> locally, or the <code class="inline">clawbot-worker</code> service on Render). If it isn't running, creators move through approval but no DM ever actually leaves — this is the first thing to check when outreach "isn't sending."</p>
+      </div>
+    </section>
+
+    <section id="telegram">
+      <h2>08 · Subsystem</h2>
+      <h3 class="title">Telegram control plane</h3>
+      <p class="dim">Telegram is the entire operator UI — there is no dashboard. One bot, polling in the main process only (the worker runs it in send-only mode to avoid duplicate-polling 409s).</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td>✅ / ❌ inline buttons</td><td class="dim">Approve/reject a new creator, accept/reject a deal</td></tr>
+            <tr><td>/discover</td><td class="dim">Trigger a scan immediately</td></tr>
+            <tr><td>/stop [hours]</td><td class="dim">Pause discovery, indefinitely or timed</td></tr>
+            <tr><td>/startscan</td><td class="dim">Resume the discovery cron</td></tr>
+            <tr><td>/range [min-max]</td><td class="dim">Set follower bounds — interactive prompt or one-liner</td></tr>
+            <tr><td>/settarget &lt;loc&gt; &lt;cat&gt;</td><td class="dim">Change discovery location + category</td></tr>
+            <tr><td>/Auto · /Manual</td><td class="dim">Toggle unattended approve-and-DM vs. approval-required</td></tr>
+            <tr><td>/StopCategoryFilter · /StartCategoryFilter</td><td class="dim">Widen discovery to any US creator, or restrict to the niche list</td></tr>
+            <tr><td>/collab @user</td><td class="dim">Manually add a creator outside discovery</td></tr>
+            <tr><td>/pause · /resume · /manual @user</td><td class="dim">Per-creator bot_state control</td></tr>
+            <tr><td>/status @user</td><td class="dim">State, follower count, quoted price, message count</td></tr>
+            <tr><td>/list [location] [category]</td><td class="dim">Active pipeline, optionally filtered</td></tr>
+            <tr><td>/deals</td><td class="dim">Full deal history with status</td></tr>
+            <tr><td>/AddID · /RemoveID · /checkTotalID</td><td class="dim">Manage which chat IDs receive cards/notifications</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="instagram">
+      <h2>09 · Subsystem</h2>
+      <h3 class="title">Instagram delivery — cookies over API</h3>
+      <p class="dim">There's no official Instagram DM-send API for this use case, so outreach and discovery both drive a real, logged-in session through headless Chrome.</p>
+      <div class="kv">
+        <dt>Auth source</dt><dd>Exported browser cookies, read from Redis key <code class="inline">ig_cookies</code> first, falling back to <code class="inline">www.instagram.com.cookies.json</code> on disk</dd>
+        <dt>Cookie freshness</dt><dd>The Chrome extension re-pushes cookies to <code class="inline">POST /api/cookies/update</code> every 30 min while the operator's browser is open and logged into the matching account</dd>
+        <dt>Send sequence</dt><dd>Navigate to profile → click Follow → open Message composer → dismiss notification prompt → type with per-keystroke delay → Enter</dd>
+        <dt>Stub mode</dt><dd><code class="inline">INSTAGRAM_STUB_MODE=true</code> logs the DM to console instead of launching a browser — the default for local dev</dd>
+      </div>
+      <div class="callout">
+        <div class="lbl">Fragility</div>
+        <p>Both DM-sending and discovery scrape Instagram's live DOM (button text, dialog structure, meta-description follower counts). Any Instagram front-end change can silently break follow/message detection or profile parsing until selectors are updated.</p>
+      </div>
+    </section>
+
+    <section id="integrations">
+      <h2>10 · Integrations</h2>
+      <h3 class="title">External surfaces</h3>
+      <div class="comp-grid">
+        <div class="comp"><span class="path">OpenAI</span><p class="role">gpt-4o · gpt-4o-mini</p><p class="note">Reply generation, counter-offers, deal confirmations, profile classification, optional trending-hashtag lookup.</p></div>
+        <div class="comp"><span class="path">Meta Graph API</span><p class="role">Official webhook</p><p class="note"><code class="inline">/api/webhooks/instagram</code> verifies via <code class="inline">META_VERIFY_TOKEN</code> and resolves sender IDs to usernames — notify-only, does not auto-reply.</p></div>
+        <div class="comp"><span class="path">Green API</span><p class="role">WhatsApp mirror</p><p class="note">Every Telegram notification is best-effort duplicated to one WhatsApp number; silently skipped if unconfigured.</p></div>
+        <div class="comp"><span class="path">Upstash / Supabase</span><p class="role">Managed Redis + Postgres</p><p class="note">Referenced in <code class="inline">.env.example</code> as the intended cloud hosts; TLS required (<code class="inline">rediss://</code>, <code class="inline">sslmode</code>).</p></div>
+        <div class="comp"><span class="path">Chrome Extension</span><p class="role">Cookie bridge</p><p class="note">MV3, permissions: cookies/storage/alarms. Matches a specific <code class="inline">ds_user_id</code> so it never syncs the wrong account's session.</p></div>
+      </div>
+    </section>
+
+    <section id="config">
+      <h2>11 · Operations</h2>
+      <h3 class="title">Configuration surface</h3>
+      <p class="dim">All of <code class="inline">src/config.js</code>, grouped by concern. Four vars are required at boot (<code class="inline">validateConfig()</code> throws otherwise): <code class="inline">TELEGRAM_BOT_TOKEN</code>, <code class="inline">TELEGRAM_CHAT_ID</code>, <code class="inline">OPENAI_API_KEY</code>, <code class="inline">DATABASE_URL</code>.</p>
+      <pre><code># Budget bounds (per-deal, USD)
+MIN_BUDGET=50   TARGET_BUDGET=100   MAX_BUDGET=150
+
+# Safety
+DM_DAILY_LIMIT=40   DM_DELAY_MIN_SEC=60   DM_DELAY_MAX_SEC=90
+
+# Discovery
+MIN_FOLLOWERS=3000   MAX_FOLLOWERS=10000
+DISCOVERY_INTERVAL_HOURS=6   DISCOVERY_MAX_PER_RUN=15
+DISCOVERY_MIN_CONFIDENCE=80  DISCOVERY_SCAN_CONNECTIONS=true
+
+# Mode
+INSTAGRAM_STUB_MODE=true   # false = real Puppeteer sends</code></pre>
+      <p class="dim">Three of these (chat IDs, follower range, discovery location/category) can also be changed live from Telegram — the DB copy in <code class="inline">settings</code> always wins over the <code class="inline">.env</code> value on next boot.</p>
+    </section>
+
+    <section id="deploy">
+      <h2>12 · Operations</h2>
+      <h3 class="title">Deploying on Render</h3>
+      <p class="dim">The repo ships a <code class="inline">Dockerfile</code> and a <code class="inline">render.yaml</code> blueprint. Docker is used specifically because Puppeteer needs a real Chromium binary and its shared libraries — a plain Node buildpack doesn't provide those reliably, so the image installs <code class="inline">chromium</code> via <code class="inline">apt-get</code> and points Puppeteer at it via <code class="inline">PUPPETEER_EXECUTABLE_PATH</code>.</p>
+
+      <div class="comp-grid">
+        <div class="comp"><span class="path">clawbot-web</span><p class="role">Docker service</p><p class="note">Runs <code class="inline">node src/index.js</code> — Express API, Telegram bot (polling), discovery cron. Health check on <code class="inline">/health</code>.</p></div>
+        <div class="comp"><span class="path">clawbot-worker</span><p class="role">Docker service</p><p class="note">Same image, <code class="inline">dockerCommand</code> overridden to <code class="inline">node src/queues/worker.js</code>. Telegram bot runs in send-only mode here to avoid double-polling.</p></div>
+      </div>
+
+      <h4>What stays external</h4>
+      <p class="dim">Postgres and Redis are <i>not</i> provisioned by the blueprint — <code class="inline">DATABASE_URL</code> / <code class="inline">REDIS_URL</code> are declared as secrets in the <code class="inline">clawbot-secrets</code> env var group and filled in against Supabase/Upstash (or Render's own Postgres/Key Value — only the connection string changes).</p>
+
+      <h4>Cookies on an ephemeral filesystem</h4>
+      <p class="dim">Render wipes the container filesystem on every redeploy, so the local <code class="inline">www.instagram.com.cookies.json</code> fallback is dev-only by design. In production, the Chrome Extension pushes fresh cookies to Redis (<code class="inline">ig_cookies</code> key) every 30 minutes via <code class="inline">POST /api/cookies/update</code> — this was already the primary path even before Render entered the picture; the file was only ever a local-dev convenience.</p>
+
+      <div class="callout">
+        <div class="lbl">Do not autoscale clawbot-web</div>
+        <p><code class="inline">node-cron</code> (discovery scheduling) and the Telegram bot's long-polling both assume exactly one running process. A second instance means two discovery scans firing at once and a Telegram <code class="inline">409 Conflict</code> as both pollers grab the same update. Keep <code class="inline">numInstances: 1</code>.</p>
+      </div>
+    </section>
+
+    <section id="risks">
+      <h2>13 · Read before operating</h2>
+      <h3 class="title">Notes for whoever runs this</h3>
+
+      <div class="callout">
+        <div class="lbl">Hardcoded admin password</div>
+        <p><code class="inline">src/telegram/handlers.js</code> gates <code class="inline">/AddID</code> and <code class="inline">/RemoveID</code> behind the literal string <code class="inline">"Admin123@"</code> checked in plaintext — anyone who can message the bot and knows or guesses this can add themselves as an approval recipient. Worth moving to an env var at minimum.</p>
+      </div>
+
+      <div class="callout">
+        <div class="lbl">Real outreach is genuine automation on your IG account</div>
+        <p>With <code class="inline">INSTAGRAM_STUB_MODE=false</code>, the bot follows and messages real accounts using your logged-in session cookies. This is exactly the kind of automated, non-official-API behavior Instagram's terms prohibit and can flag or restrict the account — treat rate limits and delays as a floor, not a guarantee of safety.</p>
+      </div>
+
+      <div class="note-box">
+        <div class="lbl">Selector fragility</div>
+        <p>Discovery and DM-sending both depend on scraping Instagram's current DOM structure and English-language button text ("Follow", "Message", "Not Now"). Expect breakage after Instagram redesigns without warning.</p>
+      </div>
+
+      <div class="note-box">
+        <div class="lbl">Worker is a separate process</div>
+        <p>Nothing is actually sent unless <code class="inline">npm run worker</code> (or the <code class="inline">worker</code> Procfile process, on Railway/Heroku-style hosts) is running alongside the main server.</p>
+      </div>
+    </section>
+
+    <hr class="rule" />
+    <footer>
+      Generated from the current state of the repository at <span class="mono">/root/storage/ClawBot</span> — reflects code, not aspirational design. Cross-check against <span class="mono">git log</span> before relying on specifics that may have since changed.
+    </footer>
+  </main>
+</div>
