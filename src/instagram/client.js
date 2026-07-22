@@ -139,12 +139,13 @@ async function sendReal(username, message, extras) {
     await page.setCookie(...cookies);
 
     console.log(`[Puppeteer] Navigating to @${username}...`);
-    await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'networkidle2' });
+    await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await new Promise((r) => setTimeout(r, 2500)); // Wait for React profile header buttons to hydrate
 
-    // 1. Follow the user
+    // 1. Follow the user if not already following
     const didFollow = await page.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('button'));
-      const followBtn = btns.find((b) => b.textContent === 'Follow');
+      const followBtn = btns.find((b) => (b.textContent || '').trim().toLowerCase() === 'follow');
       if (followBtn) {
         followBtn.click();
         return true;
@@ -157,20 +158,53 @@ async function sendReal(username, message, extras) {
       await new Promise((r) => setTimeout(r, 2000));
     }
 
-    // 2. Click Message Button
-    const clickedMessage = await page.evaluate(() => {
-      // Instagram's message button can be a div, button, or anchor link
-      const allEls = Array.from(document.querySelectorAll('div[role="button"], button, a'));
-      const msgBtn = allEls.find(el => {
-        const text = el.textContent.trim().toLowerCase();
-        return text === 'message' || text === 'send message';
+    // 2. Click Message Button (with retry loop for React hydration)
+    let clickedMessage = false;
+    let directHref = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await page.evaluate(() => {
+        const allEls = Array.from(document.querySelectorAll('div[role="button"], button, a'));
+        
+        // Strategy A: Check for explicit "Message" / "Send Message" text
+        const msgBtn = allEls.find(el => {
+          const text = (el.textContent || '').trim().toLowerCase();
+          return text === 'message' || text === 'send message';
+        });
+        if (msgBtn) {
+          msgBtn.click();
+          return { clicked: true };
+        }
+
+        // Strategy B: Check for direct DM link
+        const directLink = allEls.find(el => {
+          const href = el.getAttribute('href') || '';
+          return href.includes('/direct/t/') || href.includes('/direct/inbox/');
+        });
+        if (directLink) {
+          return { clicked: false, href: directLink.getAttribute('href') };
+        }
+
+        return { clicked: false };
       });
-      if (msgBtn) {
-        msgBtn.click();
-        return true;
+
+      if (res.clicked) {
+        clickedMessage = true;
+        break;
       }
-      return false;
-    });
+      if (res.href) {
+        directHref = res.href;
+        break;
+      }
+
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    if (directHref) {
+      console.log(`[Puppeteer] Navigating directly to DM thread: ${directHref}...`);
+      await page.goto(`https://www.instagram.com${directHref}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      clickedMessage = true;
+    }
 
     if (!clickedMessage) {
       throw new Error(`Message button not found on @${username}'s profile. They might have DMs disabled.`);

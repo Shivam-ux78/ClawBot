@@ -25,11 +25,34 @@ const NEGATIVE_KEYWORDS = [
 ];
 
 // Categories we keep (plan.md Step 6)
-const KEEP_CATEGORIES = ['love', 'couple', 'relationship', 'relationship coach', 'marriage', 'family'];
+const KEEP_CATEGORIES = [
+  'love', 'couple', 'relationship', 'relationship coach', 'marriage', 'family',
+  'lifestyle', 'travel', 'vlog', 'content creator', 'personal blog', 'mom', 'dad', 'fashion', 'beauty'
+];
 
 /** Normalise a hashtag for comparison: strip leading #, lowercase, trim. */
 function normalizeTag(tag) {
   return (tag || '').toString().replace(/^#/, '').trim().toLowerCase();
+}
+
+/** Recursively extract author usernames from Instagram API/GraphQL JSON response payloads */
+function extractUsernamesFromJson(obj, targetSet) {
+  if (!obj || typeof obj !== 'object') return;
+  
+  const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags', 'direct', 'directinbox', 'emails', 'help', 'meta', 'makeable.support', 'makeableofficial']);
+
+  if (obj.username && typeof obj.username === 'string' && /^[a-zA-Z0-9._]{3,30}$/.test(obj.username)) {
+    const u = obj.username.toLowerCase();
+    if (!SKIP.has(u)) targetSet.add(u);
+  }
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) extractUsernamesFromJson(item, targetSet);
+  } else {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'object') extractUsernamesFromJson(obj[key], targetSet);
+    }
+  }
 }
 
 /**
@@ -196,7 +219,7 @@ function computeConfidence({ locationUS, bioScore, postsMatch, keepCategory }) {
  */
 async function scanConnections(page, username, sample) {
   const out = new Set();
-  const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags', 'direct', 'emails']);
+  const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags', 'direct', 'directinbox', 'emails', 'help', 'meta', 'makeable.support', 'makeableofficial']);
 
   for (const kind of ['followers', 'following']) {
     try {
@@ -254,8 +277,8 @@ async function scanConnections(page, username, sample) {
  * category hashtag) and their follower/following connections (no post context).
  */
 async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source }) {
-  await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'networkidle2', timeout: 20000 });
-  await sleep(2000);
+  await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+  await sleep(1000);
 
   const profileData = await page.evaluate((user) => {
     let followers = null;
@@ -379,19 +402,28 @@ export async function discoverCreators({
   categoryHashtags = config.discoveryCategoryHashtags ?? ['couple'],
   categoryFilterEnabled = true,
   scanConnectionsEnabled = config.discoveryScanConnections ?? true,
-  connectionsSample = config.discoveryConnectionsSample ?? 10,
   onProgress = null,
   onCreatorFound = null,
 } = {}) {
 
-  let cookiesStr = await connection.get('ig_cookies');
+  // 1. Try dedicated scraper account cookies first
+  let cookiesStr = await connection.get('ig_discovery_cookies');
+  const DISCOVERY_COOKIES_PATH = path.resolve('www.instagram.discovery.cookies.json');
+
+  if (!cookiesStr && fs.existsSync(DISCOVERY_COOKIES_PATH)) {
+    cookiesStr = fs.readFileSync(DISCOVERY_COOKIES_PATH, 'utf8');
+  }
+
+  // 2. Fall back to main account cookies if dedicated scraper cookies not uploaded
+  if (!cookiesStr) {
+    cookiesStr = await connection.get('ig_cookies');
+    if (!cookiesStr && fs.existsSync(COOKIES_PATH)) {
+      cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
+    }
+  }
 
   if (!cookiesStr) {
-    if (fs.existsSync(COOKIES_PATH)) {
-      cookiesStr = fs.readFileSync(COOKIES_PATH, 'utf8');
-    } else {
-      throw new Error(`Cookies not found! Please click 'Save & Sync Now' in your ClawBot Chrome Extension to push fresh cookies to Redis.`);
-    }
+    throw new Error(`Cookies not found! Please click 'Sync Scraper Account' or 'Save & Sync Main Account' in your ClawBot Chrome Extension.`);
   }
 
   let cookies;
@@ -426,94 +458,88 @@ export async function discoverCreators({
       await sleep(5000 + Math.random() * 5000);
     };
 
+    const tagNetworkUsernames = new Set();
+
+    page.on('response', async (response) => {
+      try {
+        const url = response.url();
+        if (url.includes('/graphql/query') || url.includes('/api/v1/') || url.includes('/sections/') || url.includes('/web_info/')) {
+          const contentType = response.headers()['content-type'] || '';
+          if (contentType.includes('json')) {
+            const json = await response.json().catch(() => null);
+            if (json) extractUsernamesFromJson(json, tagNetworkUsernames);
+          }
+        }
+      } catch (e) {
+        // ignore parse error
+      }
+    });
+
     for (const locationTag of locationTags) {
       if (discovered.length >= maxPerRun) break;
 
-      // ── Step 1: Search the location hashtag ─────────────────────────
-      console.log(`[Discover] Navigating to location #${locationTag}...`);
+      tagNetworkUsernames.clear();
+      console.log(`[Discover] ⚡ High-speed network scan on location #${locationTag}...`);
       try {
         await page.goto(`https://www.instagram.com/explore/tags/${locationTag}/`, {
-          waitUntil: 'networkidle2',
-          timeout: 25000,
+          waitUntil: 'domcontentloaded',
+          timeout: 12000,
         });
-        await sleep(4000);
+        await sleep(1500);
       } catch (err) {
         console.warn(`[Discover] Failed to load #${locationTag}:`, err.message);
         continue;
       }
 
-      const postLinks = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]'));
-        return [...new Set(links.map(a => a.href))].slice(0, 20);
+      // Extract author usernames from DOM links + Network Interception
+      const domUsernames = await page.evaluate(() => {
+        const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags', 'direct']);
+        const links = Array.from(document.querySelectorAll('a[href^="/"]'));
+        return [...new Set(
+          links
+            .map(a => (a.getAttribute('href') || '').replace(/\//g, ''))
+            .filter(h => h && !SKIP.has(h.toLowerCase()) && /^[a-zA-Z0-9._]{3,30}$/.test(h))
+        )];
       });
 
-      console.log(`[Discover] #${locationTag}: found ${postLinks.length} posts/reels`);
-      if (onProgress) onProgress(`📍 *#${locationTag}*: checking ${postLinks.length} posts for category match...`);
+      const candidateUsernames = [...new Set([...tagNetworkUsernames, ...domUsernames])].slice(0, 20);
 
-      if (postLinks.length === 0) {
+      console.log(`[Discover] #${locationTag}: extracted ${candidateUsernames.length} candidate creator usernames via network stream & DOM`);
+      if (onProgress) onProgress(`📍 *#${locationTag}*: extracted *${candidateUsernames.length} candidate creators* via network stream...`);
+
+      if (candidateUsernames.length === 0) {
         console.warn(`[Discover] No posts found on #${locationTag} — cookies may have expired`);
         if (onProgress) onProgress(`⚠️ No posts on *#${locationTag}* — cookies may be expired`);
         continue;
       }
 
-      for (const postUrl of postLinks) {
+      let authorIndex = 0;
+      for (const username of candidateUsernames) {
+        authorIndex++;
         if (discovered.length >= maxPerRun) break;
 
+        if (seenUsernames.has(username)) {
+          console.log(`[Discover] [Author ${authorIndex}/${candidateUsernames.length}] ⏭ @${username} — already checked`);
+          continue;
+        }
+        seenUsernames.add(username);
+
+        console.log(`[Discover] [Author ${authorIndex}/${candidateUsernames.length}] 🔍 Evaluating @${username}...`);
+
         try {
-          // ── Step 2: Open post/reel → author + its hashtags ──────────
-          await page.goto(postUrl, { waitUntil: 'networkidle2', timeout: 20000 });
-          await sleep(2000);
-
-          const postData = await page.evaluate(() => {
-            let username = null;
-            const ogUrl = document.querySelector('meta[property="og:url"]')?.content || '';
-            const match = ogUrl.match(/instagram\.com\/([^\/]+)\/(?:p|reel)\//);
-            if (match && match[1] !== 'p') username = match[1];
-
-            if (!username) {
-              const SKIP = new Set(['explore', 'p', 'reel', 'reels', 'stories', 'accounts', 'about', 'privacy', 'legal', 'tags']);
-              for (const a of document.querySelectorAll('header a[href], article a[href]')) {
-                const href = (a.getAttribute('href') || '').replace(/\//g, '');
-                if (href && !SKIP.has(href) && /^[a-zA-Z0-9._]{3,30}$/.test(href)) {
-                  username = href;
-                  break;
-                }
-              }
-            }
-
-            const tagLinks = Array.from(document.querySelectorAll('a[href*="/explore/tags/"]'));
-            const postHashtags = [...new Set(
-              tagLinks
-                .map(a => {
-                  const m = (a.getAttribute('href') || '').match(/\/explore\/tags\/([^\/]+)/);
-                  return m ? decodeURIComponent(m[1]).toLowerCase() : null;
-                })
-                .filter(Boolean)
-            )];
-
-            return { username, postHashtags };
-          });
-
-          const { username, postHashtags } = postData;
-
-          // ── Step 3: Content dimension — must match a category hashtag ──
-          // Skipped entirely when the category filter is turned off (/StopCategoryFilter).
-          const matchedCats = (postHashtags || []).filter(h => categorySet.has(h));
-          if (categoryFilterEnabled && matchedCats.length === 0) continue;
-
-          if (!username || seenUsernames.has(username)) continue;
-          seenUsernames.add(username);
-
-          console.log(`[Discover] ➡️ @${username} — #${locationTag}${matchedCats.length ? ` + [${matchedCats.join(', ')}]` : ' (category filter off)'}`);
-
           const creator = await evaluateProfile(page, username, {
-            minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats, source: 'post',
+            minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'post',
           });
+
+          if (authorIndex % 5 === 0 || authorIndex === candidateUsernames.length) {
+            if (onProgress) onProgress(`📊 *#${locationTag}*: evaluated *${authorIndex}/${candidateUsernames.length}* authors | *${discovered.length}* creators found`);
+          }
+
           if (!creator) continue;
 
           await emit(creator);
 
-          // ── Step 8: Expand via this creator's followers + following ───
+          // Expand via connections if enabled
           if (scanConnectionsEnabled && discovered.length < maxPerRun) {
             console.log(`[Discover] 🔗 Scanning connections of @${username}...`);
             if (onProgress) onProgress(`🔗 Scanning followers/following of *@${username}* for same-area creators...`);
@@ -534,13 +560,12 @@ export async function discoverCreators({
               }
             }
           }
-
         } catch (err) {
-          console.warn(`[Discover] Error on ${postUrl}:`, err.message);
+          console.warn(`[Discover] Error evaluating author @${username}:`, err.message);
         }
       }
 
-      await sleep(3000);
+      await sleep(2000);
     }
 
   } finally {

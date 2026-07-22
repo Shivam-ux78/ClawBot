@@ -7,11 +7,15 @@ import { initDb, all, get } from './db.js';
 import { initBot, notify, escapeMd } from './telegram/bot.js';
 import creatorsRouter from './routes/creators.js';
 import webhookRouter from './routes/webhook.js';
+import whatsappWebhookRouter from './routes/whatsappWebhook.js';
+import statsRouter from './routes/stats.js';
+import dealsRouter from './routes/deals.js';
+import emailLeadsRouter from './routes/emailLeads.js';
+import settingsRouter from './routes/settings.js';
 import { getCreatorByUsername, logIncomingMessage } from './services/creatorService.js';
 import { notifyWhatsApp } from './services/whatsappCloudService.js';
-import whatsappWebhookRouter from './routes/whatsappWebhook.js';
-import { startDiscoveryCron } from './jobs/discoveryJob.js';
-import { startLinkedInDiscoveryCron } from './jobs/linkedinDiscoveryJob.js';
+import { startDiscoveryCron, runDiscovery } from './jobs/discoveryJob.js';
+import { startLinkedInDiscoveryCron, runLinkedInDiscovery } from './jobs/linkedinDiscoveryJob.js';
 import { connection } from './queues/dmQueue.js';
 
 /* ─────────────────────────────────────────────────
@@ -61,12 +65,28 @@ try {
 initBot();
 
 const app = express();
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 app.use(express.json());
+
+// Serve Web Dashboard Static Files
+app.use(express.static('public'));
 
 /* ─────────────────────────────────────────────────
    API Routes
 ───────────────────────────────────────────────── */
 app.use('/api/creators', creatorsRouter);
+app.use('/api/stats', statsRouter);
+app.use('/api/deals', dealsRouter);
+app.use('/api/email-leads', emailLeadsRouter);
+app.use('/api/settings', settingsRouter);
 app.use('/api/webhooks/instagram', webhookRouter);
 app.use('/api/webhooks/whatsapp', whatsappWebhookRouter);
 
@@ -82,10 +102,22 @@ app.get('/terms', (req, res) => {
   res.send(`<html><body><h1>Terms of Service</h1><p>ClawBot is an internal automation tool used solely by its operator. Use is restricted to the account owner.</p></body></html>`);
 });
 
-app.get('/api/creators', async (req, res) => {
+/* ─────────────────────────────────────────────────
+   Manual Job Triggers
+───────────────────────────────────────────────── */
+app.post('/api/jobs/trigger-discovery', async (req, res) => {
   try {
-    const creators = await all('SELECT * FROM creators ORDER BY created_at DESC');
-    res.json({ success: true, creators });
+    runDiscovery(); // Runs in background
+    res.json({ success: true, message: 'Instagram discovery job triggered in background' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/jobs/trigger-linkedin', async (req, res) => {
+  try {
+    runLinkedInDiscovery(); // Runs in background
+    res.json({ success: true, message: 'LinkedIn discovery job triggered in background' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -106,9 +138,19 @@ app.post('/api/cookies/update', async (req, res) => {
     return res.status(400).json({ error: 'Invalid cookies payload' });
   }
 
-  const isLinkedIn = platform === 'linkedin';
-  const redisKey = isLinkedIn ? 'li_cookies' : 'ig_cookies';
-  const fileName = isLinkedIn ? 'www.linkedin.com.cookies.json' : 'www.instagram.com.cookies.json';
+  let redisKey = 'ig_cookies';
+  let fileName = 'www.instagram.com.cookies.json';
+  let label = 'Instagram Main Account';
+
+  if (platform === 'linkedin') {
+    redisKey = 'li_cookies';
+    fileName = 'www.linkedin.com.cookies.json';
+    label = 'LinkedIn Account';
+  } else if (platform === 'instagram_discovery' || platform === 'discovery') {
+    redisKey = 'ig_discovery_cookies';
+    fileName = 'www.instagram.discovery.cookies.json';
+    label = 'Instagram Discovery/Scraper Account';
+  }
 
   try {
     await connection.set(redisKey, JSON.stringify(cookies));
@@ -117,8 +159,8 @@ app.post('/api/cookies/update', async (req, res) => {
     const cookiesPath = path.resolve(fileName);
     fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
 
-    console.log(`[API] ✅ ${isLinkedIn ? 'LinkedIn' : 'Instagram'} cookies updated in Redis from extension!`);
-    res.json({ success: true, message: 'Cookies updated successfully' });
+    console.log(`[API] ✅ ${label} cookies updated in Redis from extension!`);
+    res.json({ success: true, message: `${label} cookies updated successfully` });
   } catch (err) {
     console.error('[API] Error saving cookies to Redis:', err.message);
     res.status(500).json({ error: 'Failed to save cookies' });
@@ -127,7 +169,6 @@ app.post('/api/cookies/update', async (req, res) => {
 
 /* ─────────────────────────────────────────────────
    Simulate Incoming Creator Reply (Testing)
-   Notifies Telegram + WhatsApp only — no reply sent.
 ───────────────────────────────────────────────── */
 app.post('/instagram/webhook/simulate', async (req, res) => {
   const { username, message } = req.body;

@@ -64,6 +64,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const scraperBtn = document.getElementById('scraperBtn');
+
+  scraperBtn.addEventListener('click', () => {
+    const serverUrl = serverUrlInput.value.trim();
+    const secretKey = secretKeyInput.value.trim();
+
+    if (!serverUrl || !secretKey) {
+      showStatus('Please fill in all fields', 'error');
+      return;
+    }
+
+    chrome.storage.local.set({ serverUrl, secretKey }, () => {
+      showStatus('Syncing Scraper Account cookies...', 'info');
+
+      chrome.runtime.sendMessage({ action: 'syncScraperNow' }, (response) => {
+        if (chrome.runtime.lastError) {
+          showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+        } else if (response && response.success) {
+          showStatus(response.message || 'Scraper account cookies synced!', 'success');
+        } else {
+          showStatus((response && response.error) || 'Sync failed', 'error');
+        }
+      });
+    });
+  });
+
   linkedinBtn.addEventListener('click', () => {
     const serverUrl = serverUrlInput.value.trim();
     const secretKey = secretKeyInput.value.trim();

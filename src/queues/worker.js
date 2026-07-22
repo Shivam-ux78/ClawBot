@@ -62,6 +62,8 @@ const worker = new Worker(
   }
 );
 
+import { notify } from '../telegram/bot.js';
+
 worker.on('completed', (job, result) => {
   if (result?.skipped) {
     console.log(`[Worker] Job #${job.id} skipped: ${result.reason}`);
@@ -70,8 +72,22 @@ worker.on('completed', (job, result) => {
   }
 });
 
-worker.on('failed', (job, err) => {
-  console.error(`[Worker] Job #${job?.id} failed:`, err.message);
+worker.on('failed', async (job, err) => {
+  const attempts = job?.attemptsMade || 1;
+  const maxAttempts = job?.opts?.attempts || 2;
+  const { creatorId, username } = job?.data || {};
+
+  console.error(`[Worker] Job #${job?.id} failed (attempt ${attempts}/${maxAttempts}):`, err.message);
+
+  if (attempts >= maxAttempts && creatorId) {
+    console.warn(`[Worker] Job #${job?.id} reached max ${maxAttempts} attempts. Marking @${username} as dm_failed and moving forward.`);
+    try {
+      await run(`UPDATE creators SET state = 'dm_failed', bot_state = 'manual', updated_at = NOW() WHERE id = $1`, [creatorId]);
+      notify(`⚠️ *Outreach Failed* for *@${username}* after ${maxAttempts} attempts:\n\n_${err.message}_\nMarked as *dm_failed* in database.`);
+    } catch (e) {
+      console.error('[Worker] Failed to update creator state in DB:', e.message);
+    }
+  }
 });
 
 worker.on('error', (err) => {

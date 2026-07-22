@@ -51,17 +51,14 @@ export const config = {
   discoveryHashtags: process.env.DISCOVERY_HASHTAGS
     ? process.env.DISCOVERY_HASHTAGS.split(',').map(h => h.trim())
     : ['usacouples', 'americancouples', 'couplegoals', 'couplesofinstagram', 'relationshipgoals', 'couplelife', 'partnercontent'],
-  // Location hashtags (the "where" dimension — searched FIRST). Country → state → city.
+  // Location hashtags (the "where" dimension — searched FIRST). Niche target tags first.
   discoveryLocationHashtags: process.env.DISCOVERY_LOCATION_HASHTAGS
     ? process.env.DISCOVERY_LOCATION_HASHTAGS.split(',').map(h => h.trim())
     : [
-        // Country
-        'usa', 'unitedstates', 'america', 'madeinusa',
-        // States
-        'california', 'texas', 'florida', 'newyork', 'arizona',
-        // Cities
+        'usacouples', 'americancouples', 'couplesofinstagram', 'couplegoals', 'relationshipgoals',
+        'californiacouple', 'nyccouple', 'floridacouple', 'texascouple',
+        'usa', 'unitedstates', 'america', 'california', 'texas', 'florida', 'newyork',
         'losangeles', 'newyorkcity', 'chicago', 'houston', 'miami',
-        'dallas', 'seattle', 'sanfrancisco',
       ],
   // Category hashtags (the "what" dimension — matched against each post's own hashtags)
   discoveryCategoryHashtags: process.env.DISCOVERY_CATEGORY_HASHTAGS
@@ -70,13 +67,14 @@ export const config = {
         'couple', 'couplegoals', 'relationship', 'relationshipgoals', 'love',
         'dating', 'marriedlife', 'husbandandwife', 'girlfriend', 'boyfriend',
         'romance', 'family', 'couplesofinstagram', 'lovebirds', 'engaged',
-        'wedding', 'anniversary',
+        'wedding', 'anniversary', 'lifestyle', 'travel', 'vlog',
       ],
   discoveryMaxPerRun: Number(process.env.DISCOVERY_MAX_PER_RUN) || 15,
   discoveryIntervalHours: Number(process.env.DISCOVERY_INTERVAL_HOURS) || 6,
   discoveryLocation: process.env.DISCOVERY_LOCATION || 'US',
   discoveryCategory: process.env.DISCOVERY_CATEGORY || 'couple',
-  discoveryMinConfidence: Number(process.env.DISCOVERY_MIN_CONFIDENCE) || 80,
+  discoveryMinConfidence: Number(process.env.DISCOVERY_MIN_CONFIDENCE) || 50,
+  autoDmMinConfidence: Number(process.env.AUTO_DM_MIN_CONFIDENCE) || 50,
   // After finding a local creator, scan their followers + following list for
   // more creators from the same area (they cluster geographically).
   discoveryScanConnections: process.env.DISCOVERY_SCAN_CONNECTIONS !== 'false',

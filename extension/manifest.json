@@ -11,6 +11,9 @@
   "host_permissions": [
     "https://*.instagram.com/*",
     "https://*.linkedin.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*/*",
     "https://*/*"
   ],
   "background": {

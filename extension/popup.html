@@ -82,11 +82,14 @@
   <label for="secretKey">Secret Key</label>
   <input type="password" id="secretKey" placeholder="Enter EXTENSION_SECRET_KEY">
 
-  <button id="saveBtn">Save & Sync Instagram Now</button>
-  <div class="help-text">No account ID needed — whichever Instagram account is logged into this browser gets synced.</div>
+  <button id="saveBtn">Save & Sync Main Account (For DMs)</button>
+  <div class="help-text">Log into your <strong>main Instagram account</strong> in this browser, then click. Used for sending outreach DMs.</div>
+
+  <button id="scraperBtn" style="background-color:#6f42c1;">Sync Scraper Account (For Discovery)</button>
+  <div class="help-text">Log into your <strong>secondary/scraper Instagram account</strong> in this browser, then click. Used for searching hashtags.</div>
 
   <button id="linkedinBtn" style="background-color:#0a66c2;">Sync LinkedIn Now</button>
-  <div class="help-text">Log into your <strong>temp LinkedIn account</strong> in this browser first, then click. No account ID needed — whoever is logged in gets synced.</div>
+  <div class="help-text">Log into your <strong>temp LinkedIn account</strong> in this browser, then click. Used for email discovery.</div>
 
   <div id="status"></div>
 

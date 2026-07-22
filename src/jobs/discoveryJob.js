@@ -3,6 +3,7 @@ import { discoverCreators } from '../instagram/discover.js';
 import { addCreator } from '../services/creatorService.js';
 import { notify } from '../telegram/bot.js';
 import { config } from '../config.js';
+import { get } from '../db.js';
 
 let activeCronTask = null;
 let resumeTimer = null;
@@ -11,11 +12,11 @@ export let isAutoDMActive = false;
 export let isCategoryFilterActive = true;
 
 export function setAutoDMActive(state) {
-  isAutoDMActive = state;
+  isAutoDMActive = Boolean(state);
 }
 
 export function setCategoryFilterActive(state) {
-  isCategoryFilterActive = state;
+  isCategoryFilterActive = Boolean(state);
 }
 
 /**
@@ -30,12 +31,20 @@ export async function runDiscovery(isRescan = false) {
     console.log('[DiscoveryJob] Skipping run because discovery is paused.');
     return;
   }
+
+  try {
+    const row = await get("SELECT value FROM settings WHERE key = 'AUTO_DM_MODE'").catch(() => null);
+    if (row) {
+      isAutoDMActive = JSON.parse(row.value) === true || row.value === 'true';
+    }
+  } catch (e) {}
+
   const label = isRescan ? '🔄 *Re-scanning*' : '🔍 *Discovery scan started*';
   const minF = (config.minFollowers ?? 3000).toLocaleString();
   const maxF = (config.maxFollowers ?? 10000).toLocaleString();
-  const mode = isAutoDMActive ? 'Auto' : 'Manual (approval required)';
+  const mode = isAutoDMActive ? 'Auto DM Mode' : 'Scrape Only Mode (Manual Review)';
   const catFilter = isCategoryFilterActive ? 'ON' : 'OFF (any US creator)';
-  notify(`${label}... Looking for *${config.discoveryCategory || 'couple'}* creators in *${config.discoveryLocation || 'US'}* with ${minF}-${maxF} followers.\nMode: *${mode}* | Category filter: *${catFilter}* | Min confidence: *${config.discoveryMinConfidence ?? 80}%*`);
+  notify(`${label}... Looking for *${config.discoveryCategory || 'couple'}* creators in *${config.discoveryLocation || 'US'}* with ${minF}-${maxF} followers.\nMode: *${mode}* | Category filter: *${catFilter}* | Min confidence: *${config.discoveryMinConfidence ?? 50}%*`);
 
   let added = 0;
   let skipped = 0;
@@ -44,13 +53,15 @@ export async function runDiscovery(isRescan = false) {
     const creators = await discoverCreators({
       minFollowers: config.minFollowers ?? 3000,
       maxFollowers: config.maxFollowers ?? 10000,
-      minConfidence: config.discoveryMinConfidence ?? 80,
+      minConfidence: 30, // Return all explored creators down to 30% confidence
       categoryFilterEnabled: isCategoryFilterActive,
-      maxPerRun: 5, // Limit to 5 per scan as requested
+      maxPerRun: 15,
       onProgress: (msg) => notify(msg),
       onCreatorFound: async (creator) => {
         try {
-          // Process and send the notification IMMEDIATELY
+          const minThreshold = config.autoDmMinConfidence ?? 50;
+          const isHighConfidenceAuto = isAutoDMActive && creator.confidence >= minThreshold;
+
           const addedCreator = await addCreator({
             username: creator.username,
             followers: creator.followers,
@@ -59,13 +70,13 @@ export async function runDiscovery(isRescan = false) {
             bio: creator.bio,
             category: creator.category,
             confidence: creator.confidence,
-            skipApprovalCard: isAutoDMActive
+            skipApprovalCard: isHighConfidenceAuto, // Skip card if auto-sending high confidence
           });
           added++;
-          console.log(`[DiscoveryJob] ✅ Added @${creator.username}`);
+          console.log(`[DiscoveryJob] ✅ Added @${creator.username} (confidence: ${creator.confidence}%)`);
 
-          if (isAutoDMActive) {
-            console.log(`[DiscoveryJob] Auto DM mode active, auto-approving @${creator.username}`);
+          if (isHighConfidenceAuto) {
+            console.log(`[DiscoveryJob] Match confidence (${creator.confidence}% >= ${minThreshold}%), auto-approving @${creator.username}`);
             const { approveCreator } = await import('../services/creatorService.js');
             await approveCreator(addedCreator.id, {
               websiteUrl: 'https://makeable.nyc/',
@@ -73,7 +84,7 @@ export async function runDiscovery(isRescan = false) {
                 'https://www.instagram.com/makeableofficial/'
               ]
             });
-            notify(`🚀 *Auto-Approved & DM Queued:* @${addedCreator.username}`);
+            notify(`🚀 *Auto-Approved & DM Queued (Confidence ${creator.confidence}% >= ${minThreshold}%):* @${addedCreator.username}`);
           }
         } catch (err) {
           skipped++;

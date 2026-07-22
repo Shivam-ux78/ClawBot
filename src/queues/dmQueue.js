@@ -7,8 +7,8 @@ export const connection = new IORedis(config.redisUrl, { maxRetriesPerRequest: n
 export const dmQueue = new Queue('dm-queue', {
   connection,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 3000 },
     removeOnComplete: true,
     removeOnFail: true,
   },

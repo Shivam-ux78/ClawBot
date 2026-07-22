@@ -15,7 +15,7 @@ async function pushCookies(serverUrl, secretKey, cookies, platform) {
     return { success: false, error: data.error || 'Server rejected the request.' };
   } catch (err) {
     console.error('[ClawBot Sync] Network error:', err.message);
-    return { success: false, error: 'Network error connecting to server.' };
+    return { success: false, error: 'Network error connecting to server: ' + err.message };
   }
 }
 
@@ -66,11 +66,37 @@ async function syncLinkedInCookies() {
   });
 }
 
+async function syncScraperCookies() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['serverUrl', 'secretKey'], async (config) => {
+      if (!config.serverUrl || !config.secretKey) {
+        return resolve({ success: false, error: 'Extension not configured yet.' });
+      }
+
+      chrome.cookies.getAll({ domain: 'instagram.com' }, async (cookies) => {
+        const dsUserIdCookie = cookies.find(c => c.name === 'ds_user_id');
+
+        if (!dsUserIdCookie) {
+          console.log('[ClawBot Sync] No ds_user_id cookie found. Not logged into Instagram.');
+          return resolve({ success: false, error: 'Not logged into Instagram.' });
+        }
+
+        console.log('[ClawBot Sync] Pushing Instagram Scraper cookies to server...');
+        resolve(await pushCookies(config.serverUrl, config.secretKey, cookies, 'instagram_discovery'));
+      });
+    });
+  });
+}
+
 // Listen for manual sync trigger from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'syncNow') {
     syncInstagramCookies().then(sendResponse);
     return true; // Keep message channel open for async response
+  }
+  if (request.action === 'syncScraperNow') {
+    syncScraperCookies().then(sendResponse);
+    return true;
   }
   if (request.action === 'syncLinkedInNow') {
     syncLinkedInCookies().then(sendResponse);

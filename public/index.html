@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawBot — AI Outreach & Control Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation / Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand">
+        <span class="brand-icon">🤖</span>
+        <span class="brand-title">ClawBot</span>
+        <span class="brand-tag">v1.0 Control Center</span>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="system-pills">
+        <div class="pill pill-success" id="badgeTelegram">
+          <span class="dot"></span> Telegram: Active
+        </div>
+        <div class="pill pill-info" id="badgeMode">
+          <span class="dot"></span> IG Mode: Loading...
+        </div>
+        <div class="pill pill-purple" id="badgeDB">
+          <span class="dot"></span> DB: PostgreSQL
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-secondary" id="btnSimulateModal">⚡ Simulate Reply</button>
+      <button class="btn btn-primary" id="btnAddCreatorModal">+ Add Creator</button>
+      <button class="btn btn-icon" id="btnRefresh" title="Refresh Data">🔄</button>
+    </div>
+  </header>
+
+  <main class="dashboard-container">
+    <!-- Quick Stats Cards Row -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Total Creators</span>
+          <span class="stat-icon">👥</span>
+        </div>
+        <div class="stat-value" id="statTotalCreators">0</div>
+        <div class="stat-footer" id="statCreatorsSubtext">In discovery pipeline</div>
+      </div>
+
+      <div class="stat-card stat-accent-yellow">
+        <div class="stat-header">
+          <span class="stat-label">Pending Approval</span>
+          <span class="stat-icon">⏳</span>
+        </div>
+        <div class="stat-value" id="statPendingCount">0</div>
+        <div class="stat-footer">Awaiting Stage 1 review</div>
+      </div>
+
+      <div class="stat-card stat-accent-blue">
+        <div class="stat-header">
+          <span class="stat-label">Active Outreach</span>
+          <span class="stat-icon">📡</span>
+        </div>
+        <div class="stat-value" id="statOutreachCount">0</div>
+        <div class="stat-footer">DMs sent / negotiating</div>
+      </div>
+
+      <div class="stat-card stat-accent-green">
+        <div class="stat-header">
+          <span class="stat-label">Closed Deals</span>
+          <span class="stat-icon">🤝</span>
+        </div>
+        <div class="stat-value" id="statClosedDeals">0</div>
+        <div class="stat-footer" id="statDealValueText">$0 Total value</div>
+      </div>
+
+      <div class="stat-card stat-meter-card">
+        <div class="stat-header">
+          <span class="stat-label">Daily DM Limit</span>
+          <span class="stat-icon">🛡️</span>
+        </div>
+        <div class="stat-value" id="statDmMeterVal">0 / 30</div>
+        <div class="meter-bar-track">
+          <div class="meter-bar-fill" id="meterDmFill" style="width: 0%;"></div>
+        </div>
+        <div class="stat-footer">Safety rate limit active</div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs Bar -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="creators">📸 Instagram Pipeline</button>
+      <button class="tab-btn" data-tab="deals">💰 Deals & Negotiations</button>
+      <button class="tab-btn" data-tab="emailLeads">📧 Email & LinkedIn Leads</button>
+      <button class="tab-btn" data-tab="settings">⚙️ System Control & Settings</button>
+    </nav>
+
+    <!-- Tab Section 1: Instagram Creators -->
+    <section class="tab-content active" id="tabCreators">
+      <!-- Outreach Mode Control Banner -->
+      <div class="mode-banner" id="modeBanner">
+        <div class="mode-info">
+          <div class="mode-title-line">
+            <span class="mode-pill mode-scrape-only" id="modePill">🔍 SCRAPE ONLY MODE</span>
+            <span class="mode-headline" id="modeHeadline">DMs OFF — Accounts collected for manual review</span>
+          </div>
+          <p class="mode-desc" id="modeDesc">
+            All discovered creators are stored in PostgreSQL & listed below. DMs will <strong>ONLY</strong> be sent when you click <strong>Approve & Send DM</strong>.
+          </p>
+        </div>
+        <div class="mode-actions">
+          <div class="threshold-box">
+            <span class="threshold-label">Min Target Match:</span>
+            <div class="threshold-input-group">
+              <input type="number" id="inputAutoDmThreshold" min="0" max="100" value="50" class="threshold-input">
+              <span class="percent-symbol">%</span>
+              <button class="btn btn-sm btn-secondary" id="btnSaveThreshold">Apply</button>
+            </div>
+          </div>
+          <button class="btn btn-mode-toggle" id="btnToggleAutoDM">
+            ⚡ Enable Auto DM Mode
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="filter-pills" id="stateFilters">
+          <button class="filter-pill active" data-state="all">All</button>
+          <button class="filter-pill" data-state="pending">Pending Review</button>
+          <button class="filter-pill" data-state="approved">Approved</button>
+          <button class="filter-pill" data-state="outreach_sent">Outreach Sent</button>
+          <button class="filter-pill" data-state="replied">Replied</button>
+          <button class="filter-pill" data-state="negotiating">Negotiating</button>
+          <button class="filter-pill" data-state="deal_closed">Deal Closed</button>
+          <button class="filter-pill" data-state="rejected">Rejected</button>
+        </div>
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search creators, location, niche...">
+        </div>
+      </div>
+
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Creator</th>
+              <th>Followers</th>
+              <th>Niche / Location</th>
+              <th>Pipeline State</th>
+              <th>Bot Mode</th>
+              <th>Quoted Price</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="creatorsTableBody">
+            <tr>
+              <td colspan="7" class="loading-cell">Loading creators pipeline...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab Section 2: Deals -->
+    <section class="tab-content" id="tabDeals">
+      <div class="toolbar">
+        <h2>Active & Historical Deal Proposals</h2>
+      </div>
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Deal ID</th>
+              <th>Creator</th>
+              <th>Proposed Price</th>
+              <th>Budget Benchmark</th>
+              <th>Status</th>
+              <th>Date Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dealsTableBody">
+            <tr>
+              <td colspan="7" class="loading-cell">Loading deals...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab Section 3: Email Leads -->
+    <section class="tab-content" id="tabEmailLeads">
+      <div class="toolbar">
+        <h2>LinkedIn & Email Discovery Pipeline</h2>
+        <button class="btn btn-secondary" id="btnAddLeadModal">+ Add Lead Manually</button>
+      </div>
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Lead</th>
+              <th>Email</th>
+              <th>Company & Title</th>
+              <th>Location</th>
+              <th>State</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody id="leadsTableBody">
+            <tr>
+              <td colspan="6" class="loading-cell">Loading email leads...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab Section 4: System Control & Settings -->
+    <section class="tab-content" id="tabSettings">
+      <div class="settings-grid">
+        <!-- Settings Form Card -->
+        <div class="card settings-card">
+          <h3 class="card-title">⚙️ Discovery & Pipeline Parameters</h3>
+          <form id="settingsForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Min Followers</label>
+                <input type="number" id="cfgMinFollowers" placeholder="3000">
+              </div>
+              <div class="form-group">
+                <label>Max Followers</label>
+                <input type="number" id="cfgMaxFollowers" placeholder="40000">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Discovery Location</label>
+                <input type="text" id="cfgLocation" placeholder="US">
+              </div>
+              <div class="form-group">
+                <label>Discovery Category</label>
+                <input type="text" id="cfgCategory" placeholder="couple">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Daily DM Safety Limit</label>
+                <input type="number" id="cfgDmLimit" placeholder="30">
+              </div>
+              <div class="form-group">
+                <label>Auto DM Min Match Target (%)</label>
+                <input type="number" id="cfgAutoDmThreshold" min="0" max="100" placeholder="50">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Telegram Control Chat IDs (comma-separated)</label>
+              <input type="text" id="cfgTelegramChatIds" placeholder="981346425, ...">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">Save System Settings</button>
+          </form>
+        </div>
+
+        <!-- Manual Triggers Card -->
+        <div class="card settings-card">
+          <h3 class="card-title">🚀 Manual Scraper & Cron Triggers</h3>
+          <p class="card-desc">Trigger discovery algorithms immediately on-demand without waiting for scheduled crons.</p>
+          
+          <div class="trigger-box">
+            <div class="trigger-info">
+              <strong>📸 Instagram Discovery Scan</strong>
+              <span>Scrapes target hashtags & filters by follower range</span>
+            </div>
+            <button class="btn btn-secondary" id="btnTriggerDiscovery">Run Instagram Discovery</button>
+          </div>
+
+          <div class="trigger-box">
+            <div class="trigger-info">
+              <strong>📧 LinkedIn Email Discovery</strong>
+              <span>Searches target profiles & verifies outreach emails</span>
+            </div>
+            <button class="btn btn-secondary" id="btnTriggerLinkedIn">Run LinkedIn Discovery</button>
+          </div>
+
+          <div class="cookie-status-box">
+            <h4>🔑 Extension Cookie Sync Secret</h4>
+            <div class="secret-key-display">
+              <code id="secretKeyDisplay">ec60ed7c3da70862d55fb472e8014ba2</code>
+            </div>
+            <small>Use this key in the ClawBot Chrome Extension to sync browser session cookies.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Slide-over Chat History Drawer -->
+  <div class="drawer-overlay" id="chatDrawerOverlay"></div>
+  <aside class="drawer" id="chatDrawer">
+    <div class="drawer-header">
+      <div class="drawer-title-box">
+        <h3 id="drawerUsername">@username</h3>
+        <span class="badge" id="drawerStateBadge">State</span>
+      </div>
+      <button class="btn-close" id="btnCloseDrawer">✕</button>
+    </div>
+    
+    <div class="drawer-body" id="drawerChatMessages">
+      <div class="empty-chat">Select a creator to view conversation history.</div>
+    </div>
+
+    <div class="drawer-footer">
+      <textarea id="drawerMessageInput" placeholder="Type a manual outreach or reply message..."></textarea>
+      <button class="btn btn-primary" id="btnSendDrawerMessage">Send Message 🚀</button>
+    </div>
+  </aside>
+
+  <!-- Add Creator Modal -->
+  <div class="modal-overlay" id="addCreatorModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Add Creator to Pipeline</h3>
+        <button class="btn-close" id="btnCloseAddModal">✕</button>
+      </div>
+      <form id="addCreatorForm">
+        <div class="form-group">
+          <label>Instagram Username *</label>
+          <input type="text" id="addUsername" required placeholder="e.g. john_emily">
+        </div>
+        <div class="form-group">
+          <label>Followers Count</label>
+          <input type="number" id="addFollowers" placeholder="e.g. 15000">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Niche</label>
+            <input type="text" id="addNiche" placeholder="e.g. Couple / Lifestyle">
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" id="addLocation" placeholder="e.g. New York, US">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelAdd">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add & Trigger Approval</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Lead Modal -->
+  <div class="modal-overlay" id="addLeadModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Add Email / LinkedIn Lead</h3>
+        <button class="btn-close" id="btnCloseLeadModal">✕</button>
+      </div>
+      <form id="addLeadForm">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="leadName" placeholder="e.g. Sarah Smith">
+        </div>
+        <div class="form-group">
+          <label>Email Address *</label>
+          <input type="email" id="leadEmail" required placeholder="sarah@company.com">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Company</label>
+            <input type="text" id="leadCompany" placeholder="Brand LLC">
+          </div>
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="leadTitle" placeholder="Marketing Manager">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>LinkedIn URL</label>
+          <input type="url" id="leadLinkedin" placeholder="https://linkedin.com/in/...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelLead">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Lead</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Simulate Reply Modal -->
+  <div class="modal-overlay" id="simulateModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>⚡ Simulate Incoming Creator Reply</h3>
+        <button class="btn-close" id="btnCloseSimulateModal">✕</button>
+      </div>
+      <form id="simulateForm">
+        <div class="form-group">
+          <label>Target Creator Username *</label>
+          <input type="text" id="simUsername" required placeholder="e.g. john_emily">
+        </div>
+        <div class="form-group">
+          <label>Simulated Creator Reply Message *</label>
+          <textarea id="simMessage" required rows="3" placeholder="e.g. Hi! What is your rate for a reel?"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelSimulate">Cancel</button>
+          <button type="submit" class="btn btn-primary">Simulate Incoming Reply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
