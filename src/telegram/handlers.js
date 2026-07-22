@@ -104,30 +104,14 @@ export function registerHandlers(bot) {
         }
         
         try {
-          const envPath = path.resolve(process.cwd(), '.env');
-          if (fs.existsSync(envPath)) {
-            let envContent = fs.readFileSync(envPath, 'utf8');
-            const idsString = newIds.join(',');
-            if (envContent.includes('TELEGRAM_CHAT_ID=')) {
-              envContent = envContent.replace(/TELEGRAM_CHAT_ID=.*/g, `TELEGRAM_CHAT_ID=${idsString}`);
-            } else {
-              envContent += `\nTELEGRAM_CHAT_ID=${idsString}\n`;
-            }
-            fs.writeFileSync(envPath, envContent);
-          }
-          
           config.telegramChatIds = newIds;
           
-          try {
-            await run(`
-              INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_IDS', $1)
-              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-            `, [JSON.stringify(newIds)]);
-          } catch (dbErr) {
-            console.error('Error saving Chat IDs to DB:', dbErr);
-          }
+          await run(`
+            INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_IDS', $1)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+          `, [JSON.stringify(newIds)]);
           
-          return bot.sendMessage(chatId, `✅ Chat ID successfully ${action === 'add' ? 'added' : 'removed'}: ${target} (saved to database).`);
+          return bot.sendMessage(chatId, `✅ Chat ID successfully ${action === 'add' ? 'added' : 'removed'}: \`${target}\` (saved to database).`, { parse_mode: 'Markdown' });
         } catch (err) {
           console.error('Error updating Chat IDs:', err);
           return bot.sendMessage(chatId, `⚠️ Error updating Chat IDs: ${err.message}`);
