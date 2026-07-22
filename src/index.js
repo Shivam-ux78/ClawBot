@@ -8,8 +8,10 @@ import { initBot, notify, escapeMd } from './telegram/bot.js';
 import creatorsRouter from './routes/creators.js';
 import webhookRouter from './routes/webhook.js';
 import { getCreatorByUsername, logIncomingMessage } from './services/creatorService.js';
-import { notifyWhatsApp } from './services/whatsappService.js';
+import { notifyWhatsApp } from './services/whatsappCloudService.js';
+import whatsappWebhookRouter from './routes/whatsappWebhook.js';
 import { startDiscoveryCron } from './jobs/discoveryJob.js';
+import { startLinkedInDiscoveryCron } from './jobs/linkedinDiscoveryJob.js';
 import { connection } from './queues/dmQueue.js';
 
 /* ─────────────────────────────────────────────────
@@ -46,6 +48,12 @@ try {
     config.discoveryCategory = dbCategory.value;
     console.log(`[Config] Loaded DISCOVERY_CATEGORY from database: ${config.discoveryCategory}`);
   }
+
+  const dbWhatsappNumbers = await get("SELECT value FROM settings WHERE key = 'WHATSAPP_CONTROL_NUMBERS'");
+  if (dbWhatsappNumbers && dbWhatsappNumbers.value) {
+    config.whatsappControlNumbers = JSON.parse(dbWhatsappNumbers.value);
+    console.log(`[Config] Loaded WHATSAPP_CONTROL_NUMBERS from database:`, config.whatsappControlNumbers);
+  }
 } catch (err) {
   console.error('[Config] Error loading settings from DB:', err.message);
 }
@@ -60,6 +68,7 @@ app.use(express.json());
 ───────────────────────────────────────────────── */
 app.use('/api/creators', creatorsRouter);
 app.use('/api/webhooks/instagram', webhookRouter);
+app.use('/api/webhooks/whatsapp', whatsappWebhookRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -86,7 +95,7 @@ app.get('/api/creators', async (req, res) => {
    Update Cookies from Chrome Extension
 ───────────────────────────────────────────────── */
 app.post('/api/cookies/update', async (req, res) => {
-  const { secretKey, cookies } = req.body;
+  const { secretKey, cookies, platform } = req.body;
 
   if (secretKey !== config.extensionSecretKey) {
     console.warn('[API] Unauthorized cookie update attempt');
@@ -97,14 +106,18 @@ app.post('/api/cookies/update', async (req, res) => {
     return res.status(400).json({ error: 'Invalid cookies payload' });
   }
 
+  const isLinkedIn = platform === 'linkedin';
+  const redisKey = isLinkedIn ? 'li_cookies' : 'ig_cookies';
+  const fileName = isLinkedIn ? 'www.linkedin.com.cookies.json' : 'www.instagram.com.cookies.json';
+
   try {
-    await connection.set('ig_cookies', JSON.stringify(cookies));
-    
+    await connection.set(redisKey, JSON.stringify(cookies));
+
     // Also save locally as a backup for local dev
-    const cookiesPath = path.resolve('www.instagram.com.cookies.json');
+    const cookiesPath = path.resolve(fileName);
     fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
-    
-    console.log('[API] ✅ Instagram cookies updated in Redis from extension!');
+
+    console.log(`[API] ✅ ${isLinkedIn ? 'LinkedIn' : 'Instagram'} cookies updated in Redis from extension!`);
     res.json({ success: true, message: 'Cookies updated successfully' });
   } catch (err) {
     console.error('[API] Error saving cookies to Redis:', err.message);
@@ -152,9 +165,11 @@ app.listen(config.port, () => {
   console.log(`   Instagram: ${config.instagramStubMode ? 'STUB mode 🧪' : 'REAL mode 📡'}`);
   console.log(`   Follower range: ${config.minFollowers.toLocaleString()} - ${config.maxFollowers.toLocaleString()}`);
   console.log(`   Daily DM limit: ${config.dmDailyLimit}`);
-  console.log(`   Discovery: every ${config.discoveryIntervalHours}h\n`);
+  console.log(`   Discovery: every ${config.discoveryIntervalHours}h`);
+  console.log(`   LinkedIn email discovery: every ${config.linkedinSyncIntervalHours}h ${config.gmailUser ? '' : '(⚠️ GMAIL_USER not set — approvals will fail to send)'}\n`);
 
   startDiscoveryCron();
+  startLinkedInDiscoveryCron();
 });
 
 export default app;

@@ -81,6 +81,41 @@ export function sendApprovalCard(creator) {
 }
 
 /**
+ * Send interactive card for a new LinkedIn → Email lead.
+ * @param {object} lead
+ */
+export function sendLeadApprovalCard(lead) {
+  const bot = getBot();
+
+  const text = [
+    `📇 *New LinkedIn Lead*`,
+    ``,
+    `👤 ${escapeMd(lead.full_name || lead.email)}`,
+    `✉️ ${escapeMd(lead.email)}`,
+    lead.title ? `💼 ${escapeMd(lead.title)}` : '',
+    lead.company ? `🏢 ${escapeMd(lead.company)}` : '',
+    lead.location ? `📍 ${escapeMd(lead.location)}` : '',
+    ``,
+    `*Action Required:*`,
+  ].filter(Boolean).join('\n');
+
+  config.telegramChatIds.forEach(chatId => {
+    bot.sendMessage(chatId, text, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Approve', callback_data: `approvelead:${lead.id}` },
+            { text: '❌ Reject', callback_data: `rejectlead:${lead.id}` },
+          ],
+          lead.linkedin_url ? [{ text: '🔍 View LinkedIn', url: lead.linkedin_url }] : [],
+        ].filter(row => row.length),
+      },
+    }).catch(err => console.error(`[Telegram] sendLeadApprovalCard failed for ${chatId}:`, err.message));
+  });
+}
+
+/**
  * Send Stage 5 deal proposal card.
  * @param {object} creator
  * @param {object} deal

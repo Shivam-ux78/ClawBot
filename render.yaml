@@ -91,3 +91,17 @@ envVarGroups:
         sync: false
       - key: WHATSAPP_PHONE
         sync: false
+
+      # LinkedIn -> Email outreach (free pipeline) — see LINKEDIN_EMAIL_SETUP.md
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: EMAIL_DAILY_LIMIT
+        value: "30"
+      - key: LINKEDIN_SEARCH_KEYWORDS
+        sync: false
+      - key: LINKEDIN_DISCOVERY_MAX_PER_RUN
+        value: "15"
+      - key: LINKEDIN_SYNC_INTERVAL_HOURS
+        value: "6"

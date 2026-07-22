@@ -121,4 +121,46 @@ async function runSchema(pool) {
       updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+
+  // LinkedIn → Email outreach channel (free discovery pipeline, parallel to the IG pipeline)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_leads (
+      id                 SERIAL PRIMARY KEY,
+      apollo_contact_id  VARCHAR(255) UNIQUE,
+      full_name          VARCHAR(255),
+      email              VARCHAR(255) NOT NULL UNIQUE,
+      linkedin_url       VARCHAR(500),
+      company            VARCHAR(255),
+      title              VARCHAR(255),
+      location           VARCHAR(255),
+      niche              VARCHAR(255),
+      state              VARCHAR(50) NOT NULL DEFAULT 'pending',
+      bot_state          VARCHAR(50) NOT NULL DEFAULT 'active',
+      channel            VARCHAR(50) NOT NULL DEFAULT 'linkedin_email',
+      custom_message     TEXT,
+      created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_conversations (
+      id          SERIAL PRIMARY KEY,
+      lead_id     INTEGER NOT NULL REFERENCES email_leads(id),
+      direction   VARCHAR(10) NOT NULL,
+      message     TEXT NOT NULL,
+      sent_by     VARCHAR(50) NOT NULL DEFAULT 'bot',
+      created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  // Tracks outreach emails sent via Gmail SMTP, to enforce EMAIL_DAILY_LIMIT.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_send_log (
+      id          SERIAL PRIMARY KEY,
+      lead_id     INTEGER REFERENCES email_leads(id),
+      recipient   VARCHAR(255) NOT NULL,
+      sent_at     TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
 }

@@ -1,9 +1,9 @@
 import { run, get, all } from '../db.js';
 import { enqueueDM } from '../queues/dmQueue.js';
 import { bot, sendApprovalCard } from '../telegram/bot.js';
+import { sendApprovalCard as sendWhatsAppApprovalCard } from '../whatsapp/bot.js';
 import { config } from '../config.js';
 import { getProfileInfo } from '../instagram/client.js';
-import { notifyWhatsApp } from './whatsappService.js';
 
 /* ─────────────────────────────────────────────────
    Creator CRUD (PostgreSQL - Async)
@@ -36,24 +36,19 @@ export async function addCreator({ username, followers, niche, location, bio, ca
 
   const creator = await get('SELECT * FROM creators WHERE id = $1', [creatorId]);
 
-  // Fire Telegram notification
+  // Fire Telegram + WhatsApp approval cards (either can approve/reject)
   if (!skipApprovalCard) {
     try {
       sendApprovalCard(creator);
     } catch (err) {
-      console.error('[CreatorService] Failed to send approval card:', err.message);
+      console.error('[CreatorService] Failed to send Telegram approval card:', err.message);
+    }
+    try {
+      sendWhatsAppApprovalCard(creator);
+    } catch (err) {
+      console.error('[CreatorService] Failed to send WhatsApp approval card:', err.message);
     }
   }
-
-  // Notify WhatsApp
-  await notifyWhatsApp(
-    `🔍 New creator found!\n\n` +
-    `👤 @${creator.username}\n` +
-    `👥 Followers: ${creator.followers ? Number(creator.followers).toLocaleString() : 'N/A'}\n` +
-    `🏷 Category: ${creator.category || creator.niche || 'N/A'}\n` +
-    `📊 Confidence: ${creator.confidence != null ? creator.confidence + '%' : 'N/A'}\n\n` +
-    `👉 Confirm in Telegram to send the cold DM.`
-  );
 
   return creator;
 }

@@ -33,6 +33,18 @@ export function registerHandlers(bot) {
         return;
       }
 
+      if (data.startsWith('approvelead:')) {
+        const leadId = parseInt(data.split(':')[1]);
+        await handleApproveLead(bot, chatId, leadId, message.message_id);
+        return;
+      }
+
+      if (data.startsWith('rejectlead:')) {
+        const leadId = parseInt(data.split(':')[1]);
+        await handleRejectLead(bot, chatId, leadId, message.message_id);
+        return;
+      }
+
       if (data.startsWith('deal_accept:')) {
         const dealId = parseInt(data.split(':')[1]);
         await handleDealAccept(bot, chatId, dealId, message.message_id);
@@ -327,6 +339,33 @@ export function registerHandlers(bot) {
         return;
       }
 
+      if (text === '/EmailAuto') {
+        const { setAutoSequenceActive } = await import('../jobs/linkedinDiscoveryJob.js');
+        setAutoSequenceActive(true);
+        return bot.sendMessage(chatId, '🚀 *Email Auto Mode Enabled*\nNew LinkedIn leads will have the outreach email sent automatically, without confirmation.', { parse_mode: 'Markdown' });
+      }
+
+      if (text === '/EmailManual') {
+        const { setAutoSequenceActive } = await import('../jobs/linkedinDiscoveryJob.js');
+        setAutoSequenceActive(false);
+        return bot.sendMessage(chatId, '🔴 *Email Manual Mode Enabled*\nNew LinkedIn leads require your approval before the outreach email is sent.', { parse_mode: 'Markdown' });
+      }
+
+      if (text === '/syncleads') {
+        bot.sendMessage(chatId, '📇 Searching LinkedIn for new prospects... This may take a few minutes.');
+        const { runLinkedInDiscovery } = await import('../jobs/linkedinDiscoveryJob.js');
+        runLinkedInDiscovery().catch((err) => {
+          bot.sendMessage(chatId, `⚠️ LinkedIn discovery failed: ${err.message}`);
+        });
+        return;
+      }
+
+      if (text.startsWith('/leads')) {
+        const filterStr = text.replace('/leads', '').trim();
+        await handleLeadsList(bot, chatId, filterStr);
+        return;
+      }
+
       if (text.startsWith('/collab')) {
         const username = extractUsername(text);
         if (!username) return bot.sendMessage(chatId, '⚠️ Usage: `/collab @username`', { parse_mode: 'Markdown' });
@@ -399,6 +438,69 @@ async function handleReject(bot, chatId, creatorId, messageId) {
     `❌ *Rejected* @${escapeMd(creator.username)}`,
     { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
   );
+}
+
+async function handleApproveLead(bot, chatId, leadId, messageId) {
+  const { approveLead, getLeadById } = await import('../services/emailOutreachService.js');
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error(`Lead #${leadId} not found`);
+
+  if (lead.state !== 'pending') {
+    return bot.editMessageText(
+      `ℹ️ ${escapeMd(lead.email)} is already in state: \`${lead.state}\``,
+      { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+    );
+  }
+
+  await approveLead(leadId);
+
+  await bot.editMessageText(
+    `✅ *Approved!* ${escapeMd(lead.email)}\n\nOutreach email sent 📤`,
+    { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+  );
+}
+
+async function handleRejectLead(bot, chatId, leadId, messageId) {
+  const { rejectLead, getLeadById } = await import('../services/emailOutreachService.js');
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error(`Lead #${leadId} not found`);
+
+  await rejectLead(leadId);
+
+  await bot.editMessageText(
+    `❌ *Rejected* ${escapeMd(lead.email)}`,
+    { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+  );
+}
+
+async function handleLeadsList(bot, chatId, filterStr) {
+  let query = "SELECT * FROM email_leads WHERE state NOT IN ('rejected', 'deal_closed', 'deal_rejected')";
+  const params = [];
+
+  if (filterStr) {
+    query += ' AND LOWER(location) = LOWER($' + (params.length + 1) + ')';
+    params.push(filterStr);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT 20';
+
+  const leads = await all(query, params);
+
+  if (!leads.length) {
+    return bot.sendMessage(chatId, 'ℹ️ No active LinkedIn leads matching your criteria.');
+  }
+
+  const stateEmoji = { active: '🟢', paused: '🟡', manual: '🔴' };
+  const lines = leads.map((l) => {
+    const e = stateEmoji[l.bot_state] || '⚪';
+    const loc = l.location ? `[${l.location}] ` : '';
+    const co = l.company ? `(${l.company})` : '';
+    return `${e} ${escapeMd(l.email)} | ${l.state} | ${loc}${co}`;
+  });
+
+  bot.sendMessage(chatId, `📇 *LinkedIn Leads (${leads.length}):*\n\n${lines.join('\n')}`, {
+    parse_mode: 'Markdown',
+  });
 }
 
 async function handleDealAccept(bot, chatId, dealId, messageId) {
@@ -543,6 +645,13 @@ async function handleHelp(bot, chatId) {
     `/StopCategoryFilter — Find any US creator (ignore niche)`,
     `/StartCategoryFilter — Only keep Love/Couple/Relationship creators`,
     `/collab @username — Manually add any creator for outreach`,
+    ``,
+    `*LinkedIn → Email (free discovery):*`,
+    `📇 Approve/Reject → Send the outreach email, or discard`,
+    `/syncleads — Search LinkedIn for new prospects now`,
+    `/EmailAuto — Auto-send outreach email to new leads`,
+    `/EmailManual — Require approval before sending (default)`,
+    `/leads [location] — Active LinkedIn lead pipeline`,
     ``,
     `*Bot Control:*`,
     `/pause @username — Stop AI replies`,

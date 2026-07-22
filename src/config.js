@@ -22,10 +22,14 @@ export const config = {
   // Meta Webhook
   metaVerifyToken: process.env.META_VERIFY_TOKEN || 'clawbot_secret_token_123',
 
-  // WhatsApp (Green API - https://green-api.com)
-  whatsappPhone: process.env.WHATSAPP_PHONE || '919905251524',
-  whatsappIdInstance: process.env.WHATSAPP_ID_INSTANCE || '',
-  whatsappApiToken: process.env.WHATSAPP_API_TOKEN || '',
+  // WhatsApp (Meta WhatsApp Cloud API - business.facebook.com)
+  whatsappCloudToken: process.env.WHATSAPP_CLOUD_TOKEN || '',
+  whatsappCloudPhoneNumberId: process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID || '',
+  whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || 'clawbot_secret_token_123',
+  // Numbers allowed to send control commands (E.164 without '+', e.g. 919905251524), comma separated
+  whatsappControlNumbers: process.env.WHATSAPP_CONTROL_NUMBERS
+    ? process.env.WHATSAPP_CONTROL_NUMBERS.split(',').map((n) => n.trim())
+    : ['919905251524'],
 
   // Safety
   dmDailyLimit: Number(process.env.DM_DAILY_LIMIT) || 40,
@@ -77,6 +81,19 @@ export const config = {
   // more creators from the same area (they cluster geographically).
   discoveryScanConnections: process.env.DISCOVERY_SCAN_CONNECTIONS !== 'false',
   discoveryConnectionsSample: Number(process.env.DISCOVERY_CONNECTIONS_SAMPLE) || 10,
+
+  // LinkedIn → Email outreach — free pipeline: Puppeteer LinkedIn search
+  // (temp account) + pattern-guess/SMTP-verify email finder + Gmail SMTP send.
+  linkedinSearchKeywords: process.env.LINKEDIN_SEARCH_KEYWORDS
+    ? process.env.LINKEDIN_SEARCH_KEYWORDS.split(',').map((k) => k.trim())
+    : ['founder', 'marketing manager', 'content creator'],
+  linkedinDiscoveryMaxPerRun: Number(process.env.LINKEDIN_DISCOVERY_MAX_PER_RUN) || 15,
+  linkedinSyncIntervalHours: Number(process.env.LINKEDIN_SYNC_INTERVAL_HOURS) || 6,
+
+  // Google Workspace SMTP (e.g. outreach@makeable.nyc) for sending outreach emails
+  gmailUser: process.env.GMAIL_USER || '',
+  gmailAppPassword: process.env.GMAIL_APP_PASSWORD || '',
+  emailDailyLimit: Number(process.env.EMAIL_DAILY_LIMIT) || 30,
 };
 
 /**

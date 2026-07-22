@@ -75,16 +75,19 @@
   
   <label for="serverUrl">Cloud API URL</label>
   <input type="url" id="serverUrl" placeholder="https://your-server.com/api/cookies/update">
-  
+  <div class="help-text">
+    <a href="#" id="useLocalUrl">Use Local</a> &nbsp;|&nbsp; <a href="#" id="useRenderUrl">Use Render</a>
+  </div>
+
   <label for="secretKey">Secret Key</label>
   <input type="password" id="secretKey" placeholder="Enter EXTENSION_SECRET_KEY">
-  
-  <label for="accountId">Target Instagram Account ID</label>
-  <input type="text" id="accountId" placeholder="e.g. 34978143342">
-  <div class="help-text">Only syncs when this ID is logged in.</div>
-  
-  <button id="saveBtn">Save & Sync Now</button>
-  
+
+  <button id="saveBtn">Save & Sync Instagram Now</button>
+  <div class="help-text">No account ID needed — whichever Instagram account is logged into this browser gets synced.</div>
+
+  <button id="linkedinBtn" style="background-color:#0a66c2;">Sync LinkedIn Now</button>
+  <div class="help-text">Log into your <strong>temp LinkedIn account</strong> in this browser first, then click. No account ID needed — whoever is logged in gets synced.</div>
+
   <div id="status"></div>
 
   <script src="popup.js"></script>

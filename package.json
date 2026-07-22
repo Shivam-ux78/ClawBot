@@ -17,6 +17,7 @@
     "ioredis": "^5.3.2",
     "node-cron": "^4.2.1",
     "node-telegram-bot-api": "^0.66.0",
+    "nodemailer": "^9.0.3",
     "openai": "^4.47.1",
     "pg": "^8.21.0",
     "puppeteer": "^25.1.0"

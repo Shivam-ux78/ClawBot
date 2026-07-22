@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClawBot Architecture Overview</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --secondary: #8b5cf6;
+            --accent: #10b981;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1e1b4b, var(--bg-color), #020617);
+            color: var(--text-color);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border-bottom: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            margin-bottom: 3rem;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.5rem;
+            margin: 0;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 20px rgba(96, 165, 250, 0.3);
+        }
+
+        p.subtitle {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-top: 1rem;
+            max-width: 600px;
+            margin-inline: auto;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 4rem;
+        }
+
+        .mermaid-container {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            margin-bottom: 4rem;
+            animation: fadeIn 1.2s ease-out;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(12px);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 1s ease-out backwards;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        .card:nth-child(4) { animation-delay: 0.4s; }
+        .card:nth-child(5) { animation-delay: 0.5s; }
+        .card:nth-child(6) { animation-delay: 0.6s; }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), 0 0 20px rgba(96, 165, 250, 0.1);
+            border-color: rgba(96, 165, 250, 0.3);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            margin-top: 0;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            color: #cbd5e1;
+        }
+
+        .card li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+        }
+
+        .card li:last-child {
+            border-bottom: none;
+        }
+
+        .card li::before {
+            content: "✦";
+            color: var(--accent);
+            margin-right: 0.75rem;
+            font-size: 1.2rem;
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ClawBot Architecture</h1>
+        <p class="subtitle">AI Influencer Outreach & Deal Automation System</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="mermaid-container">
+            <h2 style="font-family: 'Outfit', sans-serif; margin-top: 0; text-align: center; margin-bottom: 2rem;">System Workflow</h2>
+            <div class="mermaid">
+                graph TD
+                    subgraph User Interface
+                        T[Telegram Bot]
+                        E[Chrome Extension]
+                    end
+
+                    subgraph Core System [Node.js + Express]
+                        API[API Routes / Webhooks]
+                        S_C[Creator Service]
+                        S_D[Deal Service]
+                        Q[BullMQ Redis Queue]
+                        Worker[DM Worker Process]
+                    end
+
+                    subgraph AI & Automation
+                        Puppeteer[Puppeteer Hidden Browser]
+                        OpenAI[OpenAI GPT-4o]
+                    end
+                    
+                    subgraph Data Layer
+                        PG[(PostgreSQL - Supabase)]
+                        Redis[(Redis - Upstash)]
+                    end
+
+                    E -->|Add Creator| API
+                    API --> S_C
+                    S_C --> PG
+                    S_C -.->|Notify| T
+                    T -->|Approve/Reject| S_C
+                    S_C -->|Queue Job| Q
+                    Q <--> Redis
+                    Q --> Worker
+                    Worker --> Puppeteer
+                    Puppeteer -->|Send DM| IG[Instagram]
+                    IG -->|Incoming Reply| API
+                    API --> OpenAI
+                    OpenAI -->|Negotiate/Generate Reply| S_C
+                    Worker -.->|Update Status| T
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>🤖 Core Node.js Engine</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">Express Server & Application Init</p>
+                <ul>
+                    <li><strong>index.js</strong>: Main Express entry point</li>
+                    <li><strong>config.js</strong>: Environment variable validation</li>
+                    <li><strong>routes/creators.js</strong>: Creator API endpoints</li>
+                    <li><strong>routes/webhook.js</strong>: Instagram / Meta Webhooks</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>🧠 AI Integration</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">OpenAI GPT-4o Agent</p>
+                <ul>
+                    <li><strong>ai/negotiate.js</strong>: Reply & negotiation logic</li>
+                    <li>Context-aware deal proposing</li>
+                    <li>Dynamic budget adjustment</li>
+                    <li>Natural conversational flow</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>📱 Telegram Control</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">User Interface & Approvals</p>
+                <ul>
+                    <li><strong>telegram/bot.js</strong>: Bot initialization</li>
+                    <li><strong>telegram/handlers.js</strong>: Command & button handlers</li>
+                    <li>Interactive Deal Approval Cards</li>
+                    <li>Manual Override & Pause Controls</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ Automation & Queues</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">BullMQ & Puppeteer</p>
+                <ul>
+                    <li><strong>queues/dmQueue.js</strong>: Redis job queue management</li>
+                    <li><strong>queues/worker.js</strong>: Background DM sender</li>
+                    <li><strong>instagram/client.js</strong>: Headless Chrome bypass</li>
+                    <li>Random delays & Rate limiting</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>🗄️ Services & Data</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">Business Logic Layer</p>
+                <ul>
+                    <li><strong>services/creatorService.js</strong>: Creator lifecycle</li>
+                    <li><strong>services/dealService.js</strong>: Deal history & state</li>
+                    <li><strong>db.js</strong>: Postgres pool connection</li>
+                    <li>Supabase (DB) + Upstash (Redis)</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>🧩 Browser Extension</h2>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -10px; margin-bottom: 15px;">ClawBot Sync</p>
+                <ul>
+                    <li><strong>manifest.json</strong>: Chrome extension setup</li>
+                    <li><strong>background.js</strong>: Background syncing</li>
+                    <li><strong>popup.html / .js</strong>: Extension interface</li>
+                    <li>Cookie & Session extraction</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

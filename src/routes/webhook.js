@@ -2,7 +2,7 @@ import express from 'express';
 import { config } from '../config.js';
 import { getCreatorByUsername, logIncomingMessage } from '../services/creatorService.js';
 import { notify, escapeMd } from '../telegram/bot.js';
-import { notifyWhatsApp } from '../services/whatsappService.js';
+import { notifyWhatsApp } from '../services/whatsappCloudService.js';
 
 const router = express.Router();
 

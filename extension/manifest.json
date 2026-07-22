@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ClawBot Instagram Sync",
-  "version": "1.0",
-  "description": "Automatically syncs specific Instagram session cookies to your ClawBot server.",
+  "name": "ClawBot Sync",
+  "version": "1.1",
+  "description": "Automatically syncs Instagram and LinkedIn session cookies to your ClawBot server.",
   "permissions": [
     "cookies",
     "storage",
@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://*.instagram.com/*",
+    "https://*.linkedin.com/*",
     "https://*/*"
   ],
   "background": {
