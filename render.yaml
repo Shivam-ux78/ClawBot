@@ -36,7 +36,7 @@ services:
     dockerContext: .
     region: singapore
     plan: starter
-    startCommand: "npm run worker"
+    dockerCommand: "node src/queues/worker.js"
     envVars:
       - key: DATABASE_URL
         sync: false
