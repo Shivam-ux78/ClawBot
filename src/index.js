@@ -12,6 +12,7 @@ import statsRouter from './routes/stats.js';
 import dealsRouter from './routes/deals.js';
 import emailLeadsRouter from './routes/emailLeads.js';
 import settingsRouter from './routes/settings.js';
+import authRouter from './routes/auth.js';
 import { getCreatorByUsername, logIncomingMessage } from './services/creatorService.js';
 import { notifyWhatsApp } from './services/whatsappCloudService.js';
 import { startDiscoveryCron, runDiscovery } from './jobs/discoveryJob.js';
@@ -82,6 +83,7 @@ app.use(express.static('public'));
 /* ─────────────────────────────────────────────────
    API Routes
 ───────────────────────────────────────────────── */
+app.use('/api/auth', authRouter);
 app.use('/api/creators', creatorsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/deals', dealsRouter);

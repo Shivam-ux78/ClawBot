@@ -10,6 +10,34 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Login Screen Overlay -->
+  <div class="login-screen-overlay active" id="loginScreen">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-brand-icon">🤖</div>
+        <h2>ClawBot Command Center</h2>
+        <p>Enter master credentials to access outreach controls</p>
+      </div>
+      <form id="loginForm">
+        <div class="login-error" id="loginError"></div>
+        <div class="form-group">
+          <label for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" placeholder="admin" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full btn-login">
+          <span>Sign In to Dashboard</span> 🚀
+        </button>
+      </form>
+      <div class="login-footer">
+        <small>Default credentials: <code>admin</code> / <code>Admin123@</code></small>
+      </div>
+    </div>
+  </div>
+
   <!-- Top Navigation / Header -->
   <header class="app-header">
     <div class="header-left">
@@ -36,6 +64,7 @@
       <button class="btn btn-secondary" id="btnSimulateModal">⚡ Simulate Reply</button>
       <button class="btn btn-primary" id="btnAddCreatorModal">+ Add Creator</button>
       <button class="btn btn-icon" id="btnRefresh" title="Refresh Data">🔄</button>
+      <button class="btn btn-secondary btn-sm" id="btnLogout" title="Log Out">🚪 Logout</button>
     </div>
   </header>
 

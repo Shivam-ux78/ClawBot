@@ -5,8 +5,10 @@
 let activeStateFilter = 'all';
 let activeSearchQuery = '';
 let currentActiveCreator = null;
+let authToken = localStorage.getItem('cb_auth_token') || '';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  initAuth();
   initTabs();
   initStateFilters();
   initSearch();
@@ -15,17 +17,93 @@ document.addEventListener('DOMContentLoaded', () => {
   initForms();
   initTriggers();
   
-  // Initial Data Fetch
-  loadAllData();
-
-  // Auto Refresh Every 8 Seconds
-  setInterval(loadAllData, 8000);
+  if (await checkAuth()) {
+    hideLoginScreen();
+    loadAllData();
+    setInterval(loadAllData, 8000);
+  } else {
+    showLoginScreen();
+  }
 
   document.getElementById('btnRefresh').addEventListener('click', () => {
     loadAllData();
     showToast('Dashboard data refreshed!', 'success');
   });
 });
+
+function initAuth() {
+  const loginForm = document.getElementById('loginForm');
+  const loginError = document.getElementById('loginError');
+  const btnLogout = document.getElementById('btnLogout');
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.style.display = 'none';
+
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+          authToken = data.token;
+          localStorage.setItem('cb_auth_token', authToken);
+          hideLoginScreen();
+          loadAllData();
+          setInterval(loadAllData, 8000);
+          showToast('Welcome back, Admin!', 'success');
+        } else {
+          loginError.textContent = data.error || 'Invalid credentials';
+          loginError.style.display = 'block';
+        }
+      } catch (err) {
+        loginError.textContent = 'Connection error: ' + err.message;
+        loginError.style.display = 'block';
+      }
+    });
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+      } catch (e) {}
+
+      authToken = '';
+      localStorage.removeItem('cb_auth_token');
+      showLoginScreen();
+      showToast('Logged out successfully', 'info');
+    });
+  }
+}
+
+async function checkAuth() {
+  if (!authToken) return false;
+  try {
+    const res = await fetch(`/api/auth/check?token=${encodeURIComponent(authToken)}`);
+    const data = await res.json();
+    return data.authenticated === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('loginScreen').classList.add('active');
+}
+
+function hideLoginScreen() {
+  document.getElementById('loginScreen').classList.remove('active');
+}
 
 /* ─────────────────────────────────────────────────────────────
    Data Fetching & Rendering

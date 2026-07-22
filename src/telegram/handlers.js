@@ -310,13 +310,38 @@ export function registerHandlers(bot) {
       if (text === '/Auto') {
         const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
         setAutoDMActive(true);
-        return bot.sendMessage(chatId, '🚀 *Auto Mode Enabled*\nCreators passing the confidence filter will be automatically approved and cold-DM\'d without confirmation.', { parse_mode: 'Markdown' });
+        const threshold = config.autoDmMinConfidence ?? 50;
+        return bot.sendMessage(chatId, `🚀 *Auto Mode Enabled*\nCreators scoring *≥${threshold}% match* will be automatically approved and cold-DM'd without confirmation.`, { parse_mode: 'Markdown' });
       }
 
       if (text === '/Manual' || text === '/AutoStop') {
         const { setAutoDMActive } = await import('../jobs/discoveryJob.js');
         setAutoDMActive(false);
-        return bot.sendMessage(chatId, '🔴 *Manual Mode Enabled*\nCreators found will require your approval in Telegram before any cold DM is sent.', { parse_mode: 'Markdown' });
+        return bot.sendMessage(chatId, '🔴 *Manual Mode Enabled (Scrape Only)*\nCreators found will require your approval in Telegram/Dashboard before any cold DM is sent.', { parse_mode: 'Markdown' });
+      }
+
+      if (text.startsWith('/threshold')) {
+        const arg = text.replace('/threshold', '').trim();
+        if (arg) {
+          const val = parseInt(arg, 10);
+          if (isNaN(val) || val < 0 || val > 100) {
+            return bot.sendMessage(chatId, '⚠️ Please specify a threshold between 0 and 100.\nExample: `/threshold 50`', { parse_mode: 'Markdown' });
+          }
+          config.autoDmMinConfidence = val;
+          try {
+            await run(`
+              INSERT INTO settings (key, value) VALUES ('AUTO_DM_MIN_CONFIDENCE', $1)
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            `, [String(val)]);
+            return bot.sendMessage(chatId, `🎯 *Auto DM Threshold Updated!*\nCreators scoring *≥${val}% match* will automatically receive DMs in Auto mode.`, { parse_mode: 'Markdown' });
+          } catch (dbErr) {
+            return bot.sendMessage(chatId, `⚠️ Updated in memory, but failed to save to DB: ${dbErr.message}`);
+          }
+        } else {
+          const { isAutoDMActive } = await import('../jobs/discoveryJob.js');
+          const current = config.autoDmMinConfidence ?? 50;
+          return bot.sendMessage(chatId, `📊 *Current Auto DM Threshold:* *${current}%*\nMode: *${isAutoDMActive ? 'Auto DM Mode 🟢' : 'Scrape Only Mode (Manual Review) 🔴'}*\n\nTo change: \`/threshold <0-100>\` (e.g. \`/threshold 50\`)`, { parse_mode: 'Markdown' });
+        }
       }
 
       if (text === '/StopCategoryFilter') {
@@ -642,6 +667,7 @@ async function handleHelp(bot, chatId) {
     `/range <min> - <max> — Set the follower range in one line`,
     `/Auto — Auto-approve & cold-DM creators passing the filter`,
     `/Manual — Require your approval before any cold DM (default)`,
+    `/threshold <0-100> — Set or check Auto DM match threshold (e.g. /threshold 50)`,
     `/StopCategoryFilter — Find any US creator (ignore niche)`,
     `/StartCategoryFilter — Only keep Love/Couple/Relationship creators`,
     `/collab @username — Manually add any creator for outreach`,
