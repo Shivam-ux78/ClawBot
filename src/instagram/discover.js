@@ -354,8 +354,12 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
   // When the category filter is OFF, accept any US in-range creator regardless
   // of niche — skip the keep-category and confidence gates entirely.
   if (categoryFilterEnabled) {
-    if (!keepCategory) {
-      console.log(`[Discover] ❌ @${username} — category "${category}" not in keep list`);
+    // Only hard-reject when there's NO signal at all that this is couple/family
+    // content — AI category mismatch (incl. transient AI failures returning
+    // 'unknown') alone no longer disqualifies a creator whose bio or post
+    // themes already match our niche keywords.
+    if (!keepCategory && !postsMatch && bioScore <= 0) {
+      console.log(`[Discover] ❌ @${username} — category "${category}" not in keep list, no bio/post signal`);
       return null;
     }
     const confidence = computeConfidence({ locationUS, bioScore, postsMatch, keepCategory });
@@ -402,6 +406,7 @@ export async function discoverCreators({
   categoryHashtags = config.discoveryCategoryHashtags ?? ['couple'],
   categoryFilterEnabled = true,
   scanConnectionsEnabled = config.discoveryScanConnections ?? true,
+  connectionsSample = config.discoveryConnectionsSample ?? 10,
   onProgress = null,
   onCreatorFound = null,
 } = {}) {
@@ -475,11 +480,16 @@ export async function discoverCreators({
       }
     });
 
-    for (const locationTag of locationTags) {
+    // Search category/content hashtags (e.g. #couplegoals, #family) FIRST — that's
+    // where the actual target content lives — then fall back to broad location tags.
+    const searchTags = [...new Set([...categorySet, ...locationTags])];
+
+    for (const locationTag of searchTags) {
       if (discovered.length >= maxPerRun) break;
 
+      const isCategoryTag = categorySet.has(locationTag);
       tagNetworkUsernames.clear();
-      console.log(`[Discover] ⚡ High-speed network scan on location #${locationTag}...`);
+      console.log(`[Discover] ⚡ High-speed network scan on ${isCategoryTag ? 'category' : 'location'} #${locationTag}...`);
       try {
         await page.goto(`https://www.instagram.com/explore/tags/${locationTag}/`, {
           waitUntil: 'domcontentloaded',
@@ -528,7 +538,8 @@ export async function discoverCreators({
 
         try {
           const creator = await evaluateProfile(page, username, {
-            minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'post',
+            minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag,
+            matchedCats: isCategoryTag ? [locationTag] : null, source: 'post',
           });
 
           if (authorIndex % 5 === 0 || authorIndex === candidateUsernames.length) {
