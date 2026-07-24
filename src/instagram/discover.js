@@ -276,7 +276,29 @@ async function scanConnections(page, username, sample) {
  * object if it qualifies, else null. Shared by post authors (with a matched
  * category hashtag) and their follower/following connections (no post context).
  */
-async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source }) {
+function truncate(text, n) {
+  if (!text) return '(none)';
+  return text.length > n ? `${text.slice(0, n)}…` : text;
+}
+
+/** Build a one-line Telegram-friendly dump of what was scraped for a profile. */
+function formatScrapeDebug(username, profileData, extra = {}) {
+  const followers = profileData?.followers != null ? profileData.followers.toLocaleString() : 'unknown';
+  const bio = truncate(profileData?.bio, 120);
+  const country = extra.country || 'unknown';
+  const category = extra.category || 'unclassified';
+  const lines = [
+    `🔬 *@${username}* scraped`,
+    `Followers: ${followers}${profileData?.isPrivate ? ' (private)' : ''}`,
+    `Bio: ${bio}`,
+    `Location: ${country}`,
+    `Category: ${category}`,
+  ];
+  if (extra.reason) lines.push(`❌ Rejected: ${extra.reason}`);
+  return lines.join('\n');
+}
+
+async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source, onProgress = null }) {
   await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded', timeout: 10000 });
   await sleep(1000);
 
@@ -316,18 +338,22 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
 
   if (!profileData.followers) {
     console.log(`[Discover] ❌ @${username} — could not read follower count`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason: 'could not read follower count (page layout changed or blocked)' }));
     return null;
   }
   if (profileData.isPrivate) {
     console.log(`[Discover] ❌ @${username} — private account`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason: 'private account' }));
     return null;
   }
   if (profileData.followers < minFollowers) {
     console.log(`[Discover] ❌ @${username} — ${profileData.followers.toLocaleString()} followers (below ${minFollowers.toLocaleString()})`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason: `${profileData.followers.toLocaleString()} followers, below min ${minFollowers.toLocaleString()}` }));
     return null;
   }
   if (profileData.followers > maxFollowers) {
     console.log(`[Discover] ❌ @${username} — ${profileData.followers.toLocaleString()} followers (above ${maxFollowers.toLocaleString()})`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason: `${profileData.followers.toLocaleString()} followers, above max ${maxFollowers.toLocaleString()}` }));
     return null;
   }
 
@@ -335,6 +361,7 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
   const aboutCountry = await extractAccountCountry(page);
   if (aboutCountry && !isUnitedStates(aboutCountry)) {
     console.log(`[Discover] ❌ @${username} — About says non-US: ${aboutCountry}`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { country: aboutCountry, reason: `About this account says non-US: ${aboutCountry}` }));
     return null;
   }
   const locationUS = true;
@@ -360,11 +387,13 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
     // themes already match our niche keywords.
     if (!keepCategory && !postsMatch && bioScore <= 0) {
       console.log(`[Discover] ❌ @${username} — category "${category}" not in keep list, no bio/post signal`);
+      if (onProgress) onProgress(formatScrapeDebug(username, profileData, { country: aboutCountry, category, reason: `category "${category}" not in keep list, no bio/post signal` }));
       return null;
     }
     const confidence = computeConfidence({ locationUS, bioScore, postsMatch, keepCategory });
     if (confidence < minConfidence) {
       console.log(`[Discover] ❌ @${username} — confidence ${confidence}% (below ${minConfidence}%) [cat=${category}, bio=${bioScore}, src=${source}]`);
+      if (onProgress) onProgress(formatScrapeDebug(username, profileData, { country: aboutCountry, category, reason: `confidence ${confidence}% below min ${minConfidence}%` }));
       return null;
     }
     return buildCreator();
@@ -458,7 +487,7 @@ export async function discoverCreators({
       discovered.push(creatorObj);
       const tag = creatorObj.source === 'connection' ? `🔗#${creatorObj.locationTag} network` : `📍#${creatorObj.locationTag}`;
       console.log(`[Discover] ✅ @${creatorObj.username} — ${creatorObj.followers.toLocaleString()} followers | ${creatorObj.category} | ${creatorObj.confidence}% | ${creatorObj.source}`);
-      if (onProgress) onProgress(`✅ *@${creatorObj.username}* — ${creatorObj.followers.toLocaleString()} followers | ${creatorObj.category} | ${creatorObj.confidence}% | ${tag}`);
+      if (onProgress) onProgress(`✅ *@${creatorObj.username}* — ${creatorObj.followers.toLocaleString()} followers | ${creatorObj.category} | ${creatorObj.confidence}% | ${tag}\nBio: ${truncate(creatorObj.bio, 120)}\nLocation: ${creatorObj.country}`);
       if (onCreatorFound) await onCreatorFound(creatorObj);
       await sleep(5000 + Math.random() * 5000);
     };
@@ -480,9 +509,12 @@ export async function discoverCreators({
       }
     });
 
-    // Search category/content hashtags (e.g. #couplegoals, #family) FIRST — that's
-    // where the actual target content lives — then fall back to broad location tags.
-    const searchTags = [...new Set([...categorySet, ...locationTags])];
+    // Search location/country hashtags FIRST (e.g. #usacouples, #newyorkcity) — this
+    // narrows to the right geography up front. Each candidate author is then matched
+    // against the category via their bio + post captions (see themeMatchesCategory /
+    // evaluateProfile below), not by requiring the hashtag itself to be a category tag.
+    // Category hashtags are searched afterward as a supplementary pass.
+    const searchTags = [...new Set([...locationTags, ...categorySet])];
 
     for (const locationTag of searchTags) {
       if (discovered.length >= maxPerRun) break;
@@ -539,7 +571,7 @@ export async function discoverCreators({
         try {
           const creator = await evaluateProfile(page, username, {
             minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag,
-            matchedCats: isCategoryTag ? [locationTag] : null, source: 'post',
+            matchedCats: isCategoryTag ? [locationTag] : null, source: 'post', onProgress,
           });
 
           if (authorIndex % 5 === 0 || authorIndex === candidateUsernames.length) {
@@ -563,7 +595,7 @@ export async function discoverCreators({
 
               try {
                 const c2 = await evaluateProfile(page, conn, {
-                  minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'connection',
+                  minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'connection', onProgress,
                 });
                 if (c2) await emit(c2);
               } catch (err) {

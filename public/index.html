@@ -326,6 +326,36 @@
             <small>Use this key in the ClawBot Chrome Extension to sync browser session cookies.</small>
           </div>
         </div>
+
+        <!-- Cookie Upload Card -->
+        <div class="card settings-card">
+          <h3 class="card-title">🍪 Upload Instagram Session Cookies</h3>
+          <p class="card-desc">If cookies expire (login walls / "0 creators found" / DMs failing to send), export a fresh cookies JSON from your browser and upload it here — no extension required.</p>
+
+          <div class="trigger-box">
+            <div class="trigger-info">
+              <strong>💬 DM Account (Main)</strong>
+              <span>Used to actually send outreach DMs to creators</span>
+            </div>
+            <label class="btn btn-secondary btn-file-upload">
+              📁 Upload JSON
+              <input type="file" id="fileCookiesMain" accept="application/json,.json" hidden>
+            </label>
+          </div>
+          <div class="cookie-upload-status" id="statusCookiesMain"></div>
+
+          <div class="trigger-box">
+            <div class="trigger-info">
+              <strong>🔍 Scraping Account</strong>
+              <span>Used for hashtag/profile discovery scans (optional, falls back to Main)</span>
+            </div>
+            <label class="btn btn-secondary btn-file-upload">
+              📁 Upload JSON
+              <input type="file" id="fileCookiesDiscovery" accept="application/json,.json" hidden>
+            </label>
+          </div>
+          <div class="cookie-upload-status" id="statusCookiesDiscovery"></div>
+        </div>
       </div>
     </section>
   </main>

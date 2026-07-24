@@ -316,6 +316,10 @@ async function fetchSettings() {
 
     updateOutreachModeUI(isAutoDmModeActive, autoDmThresholdVal);
 
+    if (config.extensionSecretKey) {
+      document.getElementById('secretKeyDisplay').textContent = config.extensionSecretKey;
+    }
+
     document.getElementById('cfgMinFollowers').value = config.minFollowers;
     document.getElementById('cfgMaxFollowers').value = config.maxFollowers;
     document.getElementById('cfgLocation').value = config.discoveryLocation;
@@ -771,6 +775,64 @@ function initTriggers() {
       }
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  });
+
+  initCookieUpload('fileCookiesMain', 'statusCookiesMain', 'instagram', 'DM Account');
+  initCookieUpload('fileCookiesDiscovery', 'statusCookiesDiscovery', 'instagram_discovery', 'Scraping Account');
+}
+
+/**
+ * Wires a hidden <input type="file"> to read the selected cookies JSON and
+ * POST it to /api/cookies/update for the given platform, replacing the need
+ * for the Chrome extension when cookies expire.
+ */
+function initCookieUpload(inputId, statusId, platform, label) {
+  const input = document.getElementById(inputId);
+  const status = document.getElementById(statusId);
+  if (!input) return;
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    status.textContent = `Uploading ${file.name}...`;
+    status.className = 'cookie-upload-status';
+
+    try {
+      const text = await file.text();
+      let cookies;
+      try {
+        cookies = JSON.parse(text);
+      } catch {
+        throw new Error('That file is not valid JSON.');
+      }
+      if (!Array.isArray(cookies)) {
+        throw new Error('Expected a JSON array of cookie objects.');
+      }
+
+      const secretKey = document.getElementById('secretKeyDisplay').textContent.trim();
+
+      const res = await fetch('/api/cookies/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secretKey, cookies, platform }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        status.textContent = `✅ ${label} cookies synced (${cookies.length} cookies) at ${new Date().toLocaleTimeString()}`;
+        status.className = 'cookie-upload-status success';
+        showToast(`${label} cookies updated!`, 'success');
+      } else {
+        throw new Error(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      status.textContent = `❌ ${err.message}`;
+      status.className = 'cookie-upload-status error';
+      showToast(err.message, 'error');
+    } finally {
+      input.value = '';
     }
   });
 }

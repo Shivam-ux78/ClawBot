@@ -42,6 +42,7 @@ router.get('/', async (req, res) => {
         instagramStubMode: config.instagramStubMode,
         autoDmMode: isAutoDM,
         autoDmMinConfidence: config.autoDmMinConfidence ?? 50,
+        extensionSecretKey: config.extensionSecretKey,
       },
       dbSettings,
     });

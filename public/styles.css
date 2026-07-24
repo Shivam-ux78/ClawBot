@@ -689,6 +689,26 @@ input:focus, textarea:focus, select:focus {
   font-size: 0.85rem;
 }
 
+.btn-file-upload {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cookie-upload-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: -0.5rem 0 1rem 0.25rem;
+  min-height: 1.1em;
+}
+
+.cookie-upload-status.success {
+  color: #4ade80;
+}
+
+.cookie-upload-status.error {
+  color: #f87171;
+}
+
 /* ─────────────────────────────────────────────────────────────
    Slide-over Chat Drawer
 ───────────────────────────────────────────────────────────── */
