@@ -311,17 +311,18 @@ async function fetchProfileJson(page, username) {
         headers: { 'x-ig-app-id': appId },
         credentials: 'include',
       });
-      if (!res.ok) return null;
-      return await res.json();
+      const json = res.ok ? await res.json().catch(() => null) : null;
+      return { status: res.status, json };
     } catch (e) {
-      return null;
+      return { status: 0, json: null };
     }
   }, username, IG_APP_ID);
 }
 
 async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source, onProgress = null }) {
-  const json = await fetchProfileJson(page, username);
+  const { status, json } = await fetchProfileJson(page, username);
   const igUser = json?.data?.user;
+  const rateLimited = status === 429;
 
   let profileData;
   if (igUser) {
@@ -380,8 +381,16 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
   }
 
   if (!profileData.followers) {
-    console.log(`[Discover] ❌ @${username} — could not read follower count`);
-    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason: 'could not read follower count (page layout changed or blocked)' }));
+    const reason = rateLimited
+      ? 'Instagram rate-limited this request (HTTP 429) — the scraper account is being throttled, back off and slow down'
+      : 'could not read follower count (page layout changed or blocked)';
+    console.log(`[Discover] ❌ @${username} — ${reason}`);
+    if (onProgress) onProgress(formatScrapeDebug(username, profileData, { reason }));
+    if (rateLimited) {
+      console.warn('[Discover] Rate-limited by Instagram — cooling down for 60s before continuing.');
+      if (onProgress) onProgress('🧊 Rate-limited by Instagram (429) — cooling down for 60s before continuing scan...');
+      await sleep(60000);
+    }
     return null;
   }
   if (profileData.isPrivate) {
@@ -621,6 +630,10 @@ export async function discoverCreators({
             if (onProgress) onProgress(`📊 *#${locationTag}*: evaluated *${authorIndex}/${candidateUsernames.length}* authors | *${discovered.length}* creators found`);
           }
 
+          // Pace requests between every profile check (not just matches) to
+          // avoid tripping Instagram's automation/rate-limit detection.
+          await sleep(2000 + Math.random() * 2000);
+
           if (!creator) continue;
 
           await emit(creator);
@@ -640,6 +653,7 @@ export async function discoverCreators({
                 const c2 = await evaluateProfile(page, conn, {
                   minFollowers, maxFollowers, minConfidence, categoryFilterEnabled, locationTag, matchedCats: null, source: 'connection', onProgress,
                 });
+                await sleep(2000 + Math.random() * 2000);
                 if (c2) await emit(c2);
               } catch (err) {
                 console.warn(`[Discover] Error evaluating connection @${conn}:`, err.message);
