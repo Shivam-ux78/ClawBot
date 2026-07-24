@@ -155,17 +155,23 @@ app.post('/api/cookies/update', async (req, res) => {
   }
 
   try {
-    await connection.set(redisKey, JSON.stringify(cookies));
+    let redisSaved = false;
+    try {
+      await connection.set(redisKey, JSON.stringify(cookies));
+      redisSaved = true;
+    } catch (redisErr) {
+      console.warn(`[API] ⚠️ Could not save cookies to Redis (${redisErr.message}). Saving to local file storage.`);
+    }
 
-    // Also save locally as a backup for local dev
+    // Save locally as a backup for local dev
     const cookiesPath = path.resolve(fileName);
     fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
 
-    console.log(`[API] ✅ ${label} cookies updated in Redis from extension!`);
+    console.log(`[API] ✅ ${label} cookies updated from extension! ${redisSaved ? '(Redis + File)' : '(File backup)'}`);
     res.json({ success: true, message: `${label} cookies updated successfully` });
   } catch (err) {
-    console.error('[API] Error saving cookies to Redis:', err.message);
-    res.status(500).json({ error: 'Failed to save cookies' });
+    console.error('[API] Error saving cookies:', err.message);
+    res.status(500).json({ error: 'Failed to save cookies: ' + err.message });
   }
 });
 

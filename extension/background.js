@@ -1,21 +1,60 @@
+function normalizeServerUrl(url) {
+  if (!url) return '';
+  let cleanUrl = url.trim();
+  cleanUrl = cleanUrl.replace(/^(https?:\/\/)+/i, '$1');
+  if (!/^https?:\/\//i.test(cleanUrl)) {
+    cleanUrl = 'https://' + cleanUrl;
+  }
+  cleanUrl = cleanUrl.replace(/\/+$/, '');
+  if (!cleanUrl.endsWith('/api/cookies/update')) {
+    cleanUrl += '/api/cookies/update';
+  }
+  return cleanUrl;
+}
+
 async function pushCookies(serverUrl, secretKey, cookies, platform) {
   try {
-    const response = await fetch(serverUrl, {
+    const targetUrl = normalizeServerUrl(serverUrl);
+    console.log(`[ClawBot Sync] Pushing ${platform} cookies to ${targetUrl}...`);
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secretKey, cookies, platform }),
     });
 
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    let data;
+    if (contentType.includes('application/json')) {
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        return {
+          success: false,
+          error: `Failed to parse response as JSON (HTTP ${response.status}).`
+        };
+      }
+    } else {
+      const text = await response.text();
+      console.error('[ClawBot Sync] Non-JSON server response:', text.slice(0, 300));
+      return {
+        success: false,
+        error: `Server returned non-JSON response (HTTP ${response.status} ${response.statusText || ''}). Check Server URL (${targetUrl}) and server status.`
+      };
+    }
+
     if (response.ok) {
       console.log(`[ClawBot Sync] ${platform} cookies synced!`);
-      return { success: true, message: 'Cookies synced to cloud!' };
+      return { success: true, message: data.message || 'Cookies synced to cloud!' };
     }
     console.error('[ClawBot Sync] Server error:', data.error);
-    return { success: false, error: data.error || 'Server rejected the request.' };
+    return { success: false, error: data.error || `Server rejected the request (HTTP ${response.status}).` };
   } catch (err) {
     console.error('[ClawBot Sync] Network error:', err.message);
-    return { success: false, error: 'Network error connecting to server: ' + err.message };
+    let errMsg = err.message;
+    if (errMsg === 'Failed to fetch' || errMsg.includes('Failed to fetch')) {
+      errMsg = 'Failed to connect to server. If using Render free tier, the server may be spinning up (cold start, takes ~30s) or the URL is unreachable. Please wait 30s and try again.';
+    }
+    return { success: false, error: 'Network error connecting to server: ' + errMsg };
   }
 }
 

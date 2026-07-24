@@ -63,7 +63,7 @@ export function sendApprovalCard(creator) {
   ].filter(Boolean).join('\n');
 
   config.telegramChatIds.forEach(chatId => {
-    bot.sendMessage(chatId, text, {
+    const options = {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
@@ -76,7 +76,14 @@ export function sendApprovalCard(creator) {
           ]
         ],
       },
-    }).catch(err => console.error(`[Telegram] sendApprovalCard failed for ${chatId}:`, err.message));
+    };
+    bot.sendMessage(chatId, text, options).catch(err => {
+      console.warn(`[Telegram] sendApprovalCard failed with Markdown for ${chatId} (${err.message}), retrying plain text...`);
+      delete options.parse_mode;
+      bot.sendMessage(chatId, text.replace(/[*_`]/g, ''), options).catch(e => {
+        console.error(`[Telegram] sendApprovalCard failed for ${chatId}:`, e.message);
+      });
+    });
   });
 }
 
@@ -100,7 +107,7 @@ export function sendLeadApprovalCard(lead) {
   ].filter(Boolean).join('\n');
 
   config.telegramChatIds.forEach(chatId => {
-    bot.sendMessage(chatId, text, {
+    const options = {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
@@ -111,7 +118,14 @@ export function sendLeadApprovalCard(lead) {
           lead.linkedin_url ? [{ text: '🔍 View LinkedIn', url: lead.linkedin_url }] : [],
         ].filter(row => row.length),
       },
-    }).catch(err => console.error(`[Telegram] sendLeadApprovalCard failed for ${chatId}:`, err.message));
+    };
+    bot.sendMessage(chatId, text, options).catch(err => {
+      console.warn(`[Telegram] sendLeadApprovalCard failed with Markdown for ${chatId} (${err.message}), retrying plain text...`);
+      delete options.parse_mode;
+      bot.sendMessage(chatId, text.replace(/[*_`]/g, ''), options).catch(e => {
+        console.error(`[Telegram] sendLeadApprovalCard failed for ${chatId}:`, e.message);
+      });
+    });
   });
 }
 
@@ -134,7 +148,7 @@ export function sendDealCard(creator, deal) {
   ].join('\n');
 
   config.telegramChatIds.forEach(chatId => {
-    bot.sendMessage(chatId, text, {
+    const options = {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
@@ -144,7 +158,14 @@ export function sendDealCard(creator, deal) {
           ],
         ],
       },
-    }).catch(err => console.error(`[Telegram] sendDealCard failed for ${chatId}:`, err.message));
+    };
+    bot.sendMessage(chatId, text, options).catch(err => {
+      console.warn(`[Telegram] sendDealCard failed with Markdown for ${chatId} (${err.message}), retrying plain text...`);
+      delete options.parse_mode;
+      bot.sendMessage(chatId, text.replace(/[*_`]/g, ''), options).catch(e => {
+        console.error(`[Telegram] sendDealCard failed for ${chatId}:`, e.message);
+      });
+    });
   });
 }
 
@@ -157,6 +178,11 @@ export function notify(text) {
   config.telegramChatIds.forEach(chatId => {
     botInstance
       .sendMessage(chatId, text, { parse_mode: 'Markdown' })
-      .catch((err) => console.error(`[Telegram] notify failed for ${chatId}:`, err.message));
+      .catch((err) => {
+        console.warn(`[Telegram] notify failed with Markdown for ${chatId} (${err.message}), retrying plain text...`);
+        botInstance.sendMessage(chatId, text.replace(/[*_`]/g, '')).catch((e) => {
+          console.error(`[Telegram] notify failed for ${chatId}:`, e.message);
+        });
+      });
   });
 }

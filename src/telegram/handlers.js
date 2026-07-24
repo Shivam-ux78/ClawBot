@@ -69,6 +69,34 @@ export function registerHandlers(bot) {
 
     if (!text) return;
 
+    // Allow anyone to check their Chat ID with /id or /myid
+    if (text === '/id' || text === '/myid') {
+      return bot.sendMessage(
+        chatId,
+        `🆔 *Your Telegram Chat ID:* \`${chatId}\`\n\nRegistered admins: ${config.telegramChatIds.length ? config.telegramChatIds.join(', ') : 'None (send any message to register)'}`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    // Auto-register first user if list is empty
+    if (!config.telegramChatIds || config.telegramChatIds.length === 0) {
+      console.log(`[Telegram] Auto-registering initial Chat ID: ${chatId}`);
+      config.telegramChatIds = [String(chatId)];
+      try {
+        await run(`
+          INSERT INTO settings (key, value) VALUES ('TELEGRAM_CHAT_IDS', $1)
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+        `, [JSON.stringify(config.telegramChatIds)]);
+      } catch (e) {
+        console.error('[Telegram] Failed to persist initial Chat ID to DB:', e.message);
+      }
+      bot.sendMessage(
+        chatId,
+        `🎉 *Welcome to ClawBot!*\n\nYour Chat ID (\`${chatId}\`) has been automatically registered as the primary Admin Chat ID.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
     if (text.startsWith('/AddID ')) {
       const newChatId = text.split(' ')[1];
       if (newChatId) {
@@ -122,8 +150,15 @@ export function registerHandlers(bot) {
       }
     }
 
-    // Only respond to our control chat
-    if (!config.telegramChatIds.includes(String(chatId))) return;
+    // Guard: Only respond to authorized admin control chats
+    if (!config.telegramChatIds.includes(String(chatId))) {
+      console.warn(`[Telegram] Unauthorized command attempt from Chat ID ${chatId}: "${text}"`);
+      return bot.sendMessage(
+        chatId,
+        `🔒 *Unauthorized Chat ID:* \`${chatId}\`\n\nTo authorize this chat, enter \`/AddID ${chatId}\` in an authorized chat or add \`TELEGRAM_CHAT_ID=${chatId}\` to your environment variables.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
 
     // ── Interactive /range flow (min → max) ──────────────────────────
     if (pendingRangeActions.has(chatId)) {
