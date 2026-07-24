@@ -292,49 +292,92 @@ function formatScrapeDebug(username, profileData, extra = {}) {
     `Followers: ${followers}${profileData?.isPrivate ? ' (private)' : ''}`,
     `Bio: ${bio}`,
     `Location: ${country}`,
-    `Category: ${category}`,
+    `Category: ${category}${profileData?.igCategory ? ` (IG: ${profileData.igCategory})` : ''}`,
   ];
   if (extra.reason) lines.push(`❌ Rejected: ${extra.reason}`);
   return lines.join('\n');
 }
 
+// Same public JSON endpoint the Instagram web app itself calls to render a
+// profile — far more reliable than parsing rendered HTML (structured fields,
+// no DOM/selector drift) and still free: it rides the same authenticated
+// browser session/cookies as everything else here, no third-party API cost.
+const IG_APP_ID = '936619743392459';
+
+async function fetchProfileJson(page, username) {
+  return page.evaluate(async (user, appId) => {
+    try {
+      const res = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(user)}`, {
+        headers: { 'x-ig-app-id': appId },
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }, username, IG_APP_ID);
+}
+
 async function evaluateProfile(page, username, { minFollowers, maxFollowers, minConfidence, categoryFilterEnabled = true, locationTag, matchedCats = null, source, onProgress = null }) {
-  await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded', timeout: 10000 });
-  await sleep(1000);
+  const json = await fetchProfileJson(page, username);
+  const igUser = json?.data?.user;
 
-  const profileData = await page.evaluate((user) => {
-    let followers = null;
-
-    const meta = document.querySelector('meta[name="description"]');
-    if (meta) {
-      const m = meta.content.match(/([\d,]+)\s+Followers/i);
-      if (m) followers = parseInt(m[1].replace(/,/g, ''), 10);
-    }
-
-    if (!followers) {
-      const m2 = document.body.innerText.match(/([\d,.]+[KMkMm]?)\s+[Ff]ollowers/);
-      if (m2) {
-        const raw = m2[1].replace(/,/g, '').trim();
-        if (/[Kk]$/.test(raw)) followers = Math.round(parseFloat(raw) * 1000);
-        else if (/[Mm]$/.test(raw)) followers = Math.round(parseFloat(raw) * 1000000);
-        else followers = parseInt(raw, 10);
-      }
-    }
-
-    const bioEl = document.querySelector('div[class*="Biography"] span, section div span._aacl, span[dir="auto"]');
-    const bio = bioEl?.innerText?.trim() ||
-      document.querySelector('meta[property="og:description"]')?.content || '';
-
-    const isPrivate = document.body.innerText.includes('This account is private');
-
-    const postThemesText = Array.from(document.querySelectorAll('article img[alt], main img[alt]'))
-      .map(img => img.getAttribute('alt') || '')
+  let profileData;
+  if (igUser) {
+    const postThemesText = (igUser.edge_owner_to_timeline_media?.edges || [])
+      .map(e => e.node?.accessibility_caption || '')
       .filter(Boolean)
       .slice(0, 12)
       .join(' | ');
 
-    return { username: user, followers, bio, isPrivate, postThemesText };
-  }, username);
+    profileData = {
+      username,
+      followers: igUser.edge_followed_by?.count ?? null,
+      bio: igUser.biography || '',
+      isPrivate: Boolean(igUser.is_private),
+      igCategory: igUser.category_name || null,
+      postThemesText,
+    };
+  } else {
+    // Fallback: JSON endpoint blocked/rate-limited — try the rendered page.
+    await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await sleep(1000);
+
+    profileData = await page.evaluate((user) => {
+      let followers = null;
+
+      const meta = document.querySelector('meta[name="description"]');
+      if (meta) {
+        const m = meta.content.match(/([\d,]+)\s+Followers/i);
+        if (m) followers = parseInt(m[1].replace(/,/g, ''), 10);
+      }
+
+      if (!followers) {
+        const m2 = document.body.innerText.match(/([\d,.]+[KMkMm]?)\s+[Ff]ollowers/);
+        if (m2) {
+          const raw = m2[1].replace(/,/g, '').trim();
+          if (/[Kk]$/.test(raw)) followers = Math.round(parseFloat(raw) * 1000);
+          else if (/[Mm]$/.test(raw)) followers = Math.round(parseFloat(raw) * 1000000);
+          else followers = parseInt(raw, 10);
+        }
+      }
+
+      const bioEl = document.querySelector('div[class*="Biography"] span, section div span._aacl, span[dir="auto"]');
+      const bio = bioEl?.innerText?.trim() ||
+        document.querySelector('meta[property="og:description"]')?.content || '';
+
+      const isPrivate = document.body.innerText.includes('This account is private');
+
+      const postThemesText = Array.from(document.querySelectorAll('article img[alt], main img[alt]'))
+        .map(img => img.getAttribute('alt') || '')
+        .filter(Boolean)
+        .slice(0, 12)
+        .join(' | ');
+
+      return { username: user, followers, bio, isPrivate, igCategory: null, postThemesText };
+    }, username);
+  }
 
   if (!profileData.followers) {
     console.log(`[Discover] ❌ @${username} — could not read follower count`);
@@ -366,15 +409,15 @@ async function evaluateProfile(page, username, { minFollowers, maxFollowers, min
   }
   const locationUS = true;
 
-  // Bio scoring + content-theme match
+  // Bio scoring + content-theme match (IG's own self-reported category counts as a theme signal too)
   const { score: bioScore } = scoreBio(profileData.bio);
   const postsMatch = (matchedCats && matchedCats.length > 0) ||
-    themeMatchesCategory(`${profileData.bio} ${profileData.postThemesText}`);
+    themeMatchesCategory(`${profileData.bio} ${profileData.postThemesText} ${profileData.igCategory || ''}`);
 
   // AI classification
   const category = await classifyProfile({
     bio: profileData.bio,
-    postThemesText: `${profileData.postThemesText} | ${(matchedCats || []).join(' ')}`,
+    postThemesText: `${profileData.postThemesText} | ${(matchedCats || []).join(' ')} | IG category: ${profileData.igCategory || 'none'}`,
   });
   const keepCategory = KEEP_CATEGORIES.includes(category);
 
